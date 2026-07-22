@@ -1,0 +1,25 @@
+.tables-grid {
+  max-height: 535px;
+  overflow-y: auto;
+  align-content: start;
+  padding: 3px 8px 3px 3px;
+}
+
+.order-list {
+  max-height: 330px;
+  overflow-y: auto;
+  padding-right: 10px;
+}
+
+.tables-grid::-webkit-scrollbar,
+.order-list::-webkit-scrollbar { width: 8px; }
+.tables-grid::-webkit-scrollbar-thumb,
+.order-list::-webkit-scrollbar-thumb { background: #cbd3df; border-radius: 10px; }
+.tables-grid::-webkit-scrollbar-thumb:hover,
+.order-list::-webkit-scrollbar-thumb:hover { background: #aeb9c9; }
+
+.quantity-controls { display: flex; align-items: center; gap: 5px; flex-shrink: 0; }
+.quantity-controls button { min-width: 28px; height: 28px; border: 1px solid #d8dee8; border-radius: 7px; background: #f8fafc; color: #172033; font-size: 18px; font-weight: 900; cursor: pointer; }
+.quantity-controls button:hover { border-color: #ed6a2d; color: #c84f1c; background: #fff5ef; }
+.quantity-controls b { min-width: 20px; text-align: center; font-size: 14px; }
+.quantity-controls .remove-button { border: 0; background: #fff0ed; color: #c94c1c; font-size: 20px; margin-left: 3px; }

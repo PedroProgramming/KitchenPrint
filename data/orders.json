@@ -1,0 +1,27 @@
+{
+  "1": [
+    {
+      "id": "e4d8d530-39c5-4a79-8b41-1d85f7be9f2e",
+      "name": "Contra",
+      "kind": "Prato",
+      "quantity": 1,
+      "note": "fwafwaf"
+    }
+  ],
+  "2": [
+    {
+      "id": "2a0eaf39-a487-4833-94bf-380179e79df0",
+      "name": "Contra Acebolado",
+      "kind": "Prato",
+      "quantity": 2,
+      "note": "Um sem cebola"
+    },
+    {
+      "id": "20b0b1c0-7549-4c9b-b30d-70c937c5b38a",
+      "name": "Coca 600ml",
+      "kind": "Bebida",
+      "quantity": 2,
+      "note": ""
+    }
+  ]
+}

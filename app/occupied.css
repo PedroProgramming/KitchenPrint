@@ -1,0 +1,5 @@
+.tables-panel { background: #fffaf6; }
+.table-card { background: #f8fafc; }
+.table-card.occupied { background: #ffd9c7; border: 2px solid #ed6a2d; color: #8f3210; box-shadow: 0 8px 18px #ed6a2d30; }
+.table-card.occupied .table-number { color: #c84f1c; }
+.table-card.selected.occupied { background: #ffbe9d; border-color: #b83f0d; box-shadow: 0 0 0 4px #ed6a2d30, 0 10px 22px #ed6a2d35; }

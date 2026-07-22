@@ -1,0 +1,10 @@
+@import "tailwindcss";
+
+@layer components {
+  section > button.mt-4 {
+    margin-top: .75rem !important;
+    padding: .5rem .75rem !important;
+    border-radius: .5rem !important;
+    font-size: .875rem !important;
+  }
+}

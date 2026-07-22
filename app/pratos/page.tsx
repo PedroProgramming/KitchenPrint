@@ -1,0 +1,21 @@
+"use client";
+
+import { useEffect, useState } from "react";
+import Sidebar, { type SidebarUser } from "../sidebar";
+
+type MenuItem = { id: string; name: string; price: number; kind: "Prato" | "Bebida"; active: boolean };
+
+export default function PratosPage() {
+  const [user, setUser] = useState<SidebarUser | null>(null);
+  const [menu, setMenu] = useState<MenuItem[]>([]);
+  const [dish, setDish] = useState({ name: "", price: "", kind: "Prato" as "Prato" | "Bebida" });
+  const [error, setError] = useState("");
+  async function refresh() { const response = await fetch("/api/menu"); if (response.ok) setMenu(await response.json()); }
+  useEffect(() => { fetch("/api/auth/me").then(async (response) => { const data = await response.json(); if (!response.ok || data.user?.role !== "admin") throw new Error("Acesso negado"); setUser(data.user); void refresh(); }).catch((cause) => setError(cause.message)); }, []);
+  async function save(event: React.FormEvent) { event.preventDefault(); setError(""); const response = await fetch("/api/menu", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ name: dish.name, kind: dish.kind, price: Number(dish.price.replace(",", ".")) }) }); const result = await response.json(); if (!response.ok) return setError(result.error); setDish({ name: "", price: "", kind: dish.kind }); void refresh(); }
+  if (error) return <main className="grid min-h-screen place-items-center bg-slate-100 p-5"><div className="rounded-2xl bg-white p-8 text-center shadow"><h1 className="text-xl font-black">Acesso restrito</h1><p className="mt-2 text-slate-500">{error}</p><a className="mt-5 inline-block cursor-pointer rounded-xl bg-orange-500 px-4 py-2 font-bold text-white" href="/">Voltar</a></div></main>;
+  if (!user) return <main className="grid min-h-screen place-items-center bg-slate-100 text-slate-500">Carregando pratos...</main>;
+  const dishes = menu.filter((item) => item.kind === "Prato"); const drinks = menu.filter((item) => item.kind === "Bebida");
+  return <main className="min-h-screen bg-slate-100 lg:grid lg:grid-cols-[250px_minmax(0,1fr)]"><Sidebar user={user} /><section className="min-w-0 p-4 text-slate-900 sm:p-8"><div className="mx-auto max-w-6xl"><header className="mb-7"><p className="text-xs font-black uppercase tracking-widest text-orange-500">Administração</p><h1 className="text-3xl font-black sm:text-4xl">Pratos e bebidas</h1><p className="text-slate-500">Organize os itens disponíveis para os pedidos.</p></header><div className="grid gap-5 lg:grid-cols-[340px_1fr]"><form className="h-fit rounded-2xl border border-slate-200 bg-white p-5 shadow-sm" onSubmit={save}><h2 className="mb-4 text-xl font-black">Novo item</h2><label>Tipo<select className="mt-1 w-full" value={dish.kind} onChange={(event) => setDish({ ...dish, kind: event.target.value as "Prato" | "Bebida" })}><option>Prato</option><option>Bebida</option></select></label><label>Nome<input className="mt-1 w-full" value={dish.name} onChange={(event) => setDish({ ...dish, name: event.target.value })} required /></label><label>Preço<input className="mt-1 w-full" inputMode="decimal" placeholder="35,90" value={dish.price} onChange={(event) => setDish({ ...dish, price: event.target.value })} required /></label>{error && <p className="mb-3 rounded-xl bg-red-50 p-3 text-sm font-bold text-red-600">{error}</p>}<button className="w-full cursor-pointer rounded-xl bg-orange-500 px-4 py-3 font-black text-white transition hover:bg-orange-600">Cadastrar item</button></form><div className="space-y-5"><Catalog title="Pratos" items={dishes} /><Catalog title="Bebidas" items={drinks} /></div></div></div></section></main>;
+}
+function Catalog({ title, items }: { title: string; items: MenuItem[] }) { return <section className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm"><h2 className="mb-4 text-xl font-black">{title} <span className="text-sm text-slate-400">({items.length})</span></h2><div className="grid gap-2 sm:grid-cols-2">{items.map((item) => <div key={item.id} className="flex min-h-12 items-center justify-between gap-3 rounded-xl border border-slate-100 bg-slate-50 px-4 py-3"><span className="font-bold">{item.name}</span><strong className="shrink-0 text-orange-600">{item.price ? `R$ ${item.price.toFixed(2).replace(".", ",")}` : "A combinar"}</strong></div>)}</div></section>; }

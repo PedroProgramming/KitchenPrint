@@ -1,0 +1,10 @@
+node_modules/
+.next/
+.env*
+!.env.example
+npm-debug.log*
+data/orders.json.tmp
+data/*.sqlite
+data/*.sqlite-*
+
+.vercel

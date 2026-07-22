@@ -1,0 +1,2 @@
+create table if not exists public.print_jobs (id uuid primary key default gen_random_uuid(), table_number integer not null, payload text not null, status text not null default 'pending' check (status in ('pending','processing','printed','error')), attempts integer not null default 0, error_message text, created_at timestamptz not null default now(), printed_at timestamptz);
+alter table public.print_jobs enable row level security;
