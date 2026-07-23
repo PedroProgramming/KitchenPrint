@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, type Dispatch, type SetStateAction } from "react";
+import { useEffect, useMemo, useState, type Dispatch, type SetStateAction } from "react";
 
 type Item = {
   id: string;
@@ -39,19 +39,23 @@ export default function OrderPanel({
 }: Props) {
   const [open, setOpen] = useState(false);
   const [kind, setKind] = useState<Item["kind"]>("Prato");
-  const [name, setName] = useState("");
+  const [selectedMenuId, setSelectedMenuId] = useState("");
   const [quantity, setQuantity] = useState(1);
   const [note, setNote] = useState("");
   const [removeItem, setRemoveItem] = useState<Item | null>(null);
   const items = orders[table] ?? [];
   const kitchen = items.filter((item) => item.kind === "Prato" && (item.printedQuantity ?? 0) < item.quantity);
+  const availableMenu = useMemo(() => menu.filter((item) => item.kind === kind), [kind, menu]);
+  useEffect(() => {
+    if (!availableMenu.some((item) => item.id === selectedMenuId)) setSelectedMenuId(availableMenu[0]?.id ?? "");
+  }, [availableMenu, selectedMenuId]);
   function add() {
-    const clean = name.trim();
-    if (!clean) return;
+    const selectedMenuItem = availableMenu.find((entry) => entry.id === selectedMenuId);
+    if (!selectedMenuItem) return;
     const item: Item = {
       id: crypto.randomUUID(),
-      name: clean,
-      kind,
+      name: selectedMenuItem.name,
+      kind: selectedMenuItem.kind,
       quantity: Math.max(1, quantity),
       note: note.trim(),
     };
@@ -74,7 +78,6 @@ export default function OrderPanel({
           : [...existing, item],
       };
     });
-    setName("");
     setQuantity(1);
     setNote("");
     setOpen(false);
@@ -154,7 +157,13 @@ export default function OrderPanel({
           </div>
           <label className="mt-2 block text-xs font-bold text-slate-500">
             Nome do Prato ou Bebida
-            <input autoFocus className={field} value={name} onChange={(event) => setName(event.target.value)} onKeyDown={(event) => event.key === "Enter" && add()} placeholder="Ex.: Contra filé, Coca 600ml" />
+            <select autoFocus className={field} value={selectedMenuId} onChange={(event) => setSelectedMenuId(event.target.value)}>
+              {availableMenu.map((item) => (
+                <option key={item.id} value={item.id}>
+                  {item.name}{item.price ? ` - R$ ${item.price.toFixed(2).replace(".", ",")}` : ""}
+                </option>
+              ))}
+            </select>
           </label>
           <label className="mt-2 block text-xs font-bold text-slate-500">
             Observação
@@ -168,7 +177,7 @@ export default function OrderPanel({
           <button
             className="mt-1 w-full rounded-xl bg-slate-900 px-3 py-3 text-sm font-black text-white disabled:opacity-40"
             onClick={add}
-            disabled={!available}
+            disabled={!available || !selectedMenuId}
           >
             Adicionar item
           </button>

@@ -69,7 +69,18 @@ export async function saveOrders(orders: Record<string, StoredItem[]>, user: Use
     }
   }
 }
-export async function releaseTable(table: number, user: User) { if (user.role !== "admin" || !await allowedTable(user, table)) throw new Error("Acesso negado"); const now = new Date().toISOString(); const closed = await db.from("service_sessions").update({ released_by: user.id, released_at: now }).eq("table_number", table).is("released_at", null); if (closed.error) throw closed.error; const removed = await db.from("table_orders").delete().eq("table_number", table); if (removed.error) throw removed.error; const event = await db.from("table_events").insert({ table_number: table, user_id: user.id, action: "liberada" }); if (event.error) throw event.error; }
+export async function releaseTable(table: number, user: User) {
+  if (user.role !== "admin" || !await allowedTable(user, table)) throw new Error("Acesso negado");
+  const current = await db.from("table_orders").select("items_json").eq("table_number", table).maybeSingle();
+  if (current.error) throw current.error;
+  const now = new Date().toISOString();
+  const closed = await db.from("service_sessions").update({ released_by: user.id, released_at: now, closed_items_json: current.data?.items_json ?? [] }).eq("table_number", table).is("released_at", null);
+  if (closed.error) throw closed.error;
+  const removed = await db.from("table_orders").delete().eq("table_number", table);
+  if (removed.error) throw removed.error;
+  const event = await db.from("table_events").insert({ table_number: table, user_id: user.id, action: "liberada" });
+  if (event.error) throw event.error;
+}
 export async function listUsers() { const { data } = await db.from("users").select("*").order("name"); return (data ?? []).map(mapUser); }
 export async function createUser(input: { name: string; username: string; password: string; role: Role; area: Area; tables: number[] }) { const { error } = await db.from("users").insert({ name: input.name.trim(), username: input.username.trim().toLowerCase(), password_hash: await bcrypt.hash(input.password, 10), role: input.role, area: input.area, tables_json: input.tables }); if (error) throw error; }
 export async function listUsersWithStats() { const users = await listUsers(); const { data: tables, error } = await db.from("restaurant_tables").select("number,area").eq("active", true); if (error) throw error; return users.map((user) => ({ ...user, tablesCount: user.role === "admin" ? (tables ?? []).length : (tables ?? []).filter((table) => table.area === user.area).length })); }
@@ -81,16 +92,23 @@ export async function dashboardStats() { const { data, error } = await db.from("
 export async function dashboardStatsForDate(date?: string) {
   const start = date ? `${date}T00:00:00.000Z` : undefined;
   const end = date ? `${date}T23:59:59.999Z` : undefined;
-  let query = db.from("service_sessions").select("id,table_number,area,opened_at,released_at,opened_by,users!service_sessions_opened_by_fkey(name,username)").order("opened_at", { ascending: false });
-  if (start && end) query = query.gte("opened_at", start).lte("opened_at", end);
+  let query = db.from("service_sessions").select("id,table_number,area,opened_at,released_at,opened_by,closed_items_json,users!service_sessions_opened_by_fkey(name,username)").order("opened_at", { ascending: false });
+  if (start && end) query = query.or(`released_at.gte.${start},released_at.is.null`).or(`released_at.lte.${end},released_at.is.null`);
   const { data, error } = await query;
   if (error) throw error;
   const sessions = (data ?? []) as any[];
+  const closedSessions = sessions.filter((session) => session.released_at && (!start || new Date(session.released_at) >= new Date(start)) && (!end || new Date(session.released_at) <= new Date(end)));
   const dishesByWaiter = new Map<string, number>();
-  if (sessions.length) {
-    const { data: logs, error: logsError } = await db.from("consumption_logs").select("session_id,items_json").in("session_id", sessions.map((session) => session.id));
+  const sessionsMissingSnapshot = closedSessions.filter((session) => !Array.isArray(session.closed_items_json) || !session.closed_items_json.length);
+  for (const session of closedSessions) {
+    const finalItems = (session.closed_items_json ?? []) as StoredItem[];
+    const dishes = finalItems.filter((item) => item.kind === "Prato").reduce((total, item) => total + Number(item.quantity || 0), 0);
+    dishesByWaiter.set(String(session.opened_by), (dishesByWaiter.get(String(session.opened_by)) ?? 0) + dishes);
+  }
+  if (sessionsMissingSnapshot.length) {
+    const { data: logs, error: logsError } = await db.from("consumption_logs").select("session_id,items_json").in("session_id", sessionsMissingSnapshot.map((session) => session.id));
     if (logsError) throw logsError;
-    const waiterBySession = new Map(sessions.map((session) => [session.id, String(session.opened_by)]));
+    const waiterBySession = new Map(sessionsMissingSnapshot.map((session) => [session.id, String(session.opened_by)]));
     const logsBySession = new Map<string, any[]>();
     for (const log of logs ?? []) logsBySession.set(log.session_id, [...(logsBySession.get(log.session_id) ?? []), log]);
     for (const [sessionId, sessionLogs] of logsBySession) {
@@ -103,6 +121,7 @@ export async function dashboardStatsForDate(date?: string) {
   }
   const byWaiter = new Map<string, { name: string; area: string; tables: number; dishes: number; totalMinutes: number }>();
   let totalMinutes = 0; let closed = 0;
-  for (const session of sessions) { const key = String(session.opened_by); const current = byWaiter.get(key) ?? { name: session.users?.name ?? session.users?.username ?? "Usuario", area: session.area ?? "salao", tables: 0, dishes: dishesByWaiter.get(key) ?? 0, totalMinutes: 0 }; current.tables += 1; if (session.released_at) { const minutes = Math.max(0, (new Date(session.released_at).getTime() - new Date(session.opened_at).getTime()) / 60000); current.totalMinutes += minutes; totalMinutes += minutes; closed += 1; } byWaiter.set(key, current); }
-  return { totalTables: sessions.length, openTables: sessions.length - closed, closedTables: closed, averageMinutes: closed ? Math.round(totalMinutes / closed) : 0, byWaiter: [...byWaiter.values()].map((row) => ({ name: row.name, area: row.area, tables: row.tables, dishes: row.dishes, averageMinutes: row.tables ? Math.round(row.totalMinutes / row.tables) : 0 })).sort((a, b) => b.dishes - a.dishes) };
+  for (const session of closedSessions) { const key = String(session.opened_by); const current = byWaiter.get(key) ?? { name: session.users?.name ?? session.users?.username ?? "Usuario", area: session.area ?? "salao", tables: 0, dishes: dishesByWaiter.get(key) ?? 0, totalMinutes: 0 }; current.tables += 1; const minutes = Math.max(0, (new Date(session.released_at).getTime() - new Date(session.opened_at).getTime()) / 60000); current.totalMinutes += minutes; totalMinutes += minutes; closed += 1; byWaiter.set(key, current); }
+  const waiterRows = [...byWaiter.values()].map((row) => ({ name: row.name, area: row.area, tables: row.tables, dishes: row.dishes, averageMinutes: row.tables ? Math.round(row.totalMinutes / row.tables) : 0 })).sort((a, b) => b.dishes - a.dishes);
+  return { totalTables: closed, openTables: sessions.filter((session) => !session.released_at).length, closedTables: closed, totalDishes: waiterRows.reduce((total, row) => total + row.dishes, 0), averageMinutes: closed ? Math.round(totalMinutes / closed) : 0, byWaiter: waiterRows };
 }
