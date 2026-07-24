@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState, type Dispatch, type SetStateAction } from "react";
+import { useState, type Dispatch, type SetStateAction } from "react";
 
 type Item = {
   id: string;
@@ -11,10 +11,8 @@ type Item = {
   printedQuantity?: number;
 };
 type Orders = Record<number, Item[]>;
-type MenuItem = { id: string; name: string; price: number; kind: "Prato" | "Bebida"; active: boolean };
 type Props = {
   table: number;
-  menu: MenuItem[];
   orders: Orders;
   setOrders: Dispatch<SetStateAction<Orders>>;
   available: boolean;
@@ -28,7 +26,6 @@ const field =
 
 export default function OrderPanel({
   table,
-  menu,
   orders,
   setOrders,
   available,
@@ -39,23 +36,19 @@ export default function OrderPanel({
 }: Props) {
   const [open, setOpen] = useState(false);
   const [kind, setKind] = useState<Item["kind"]>("Prato");
-  const [selectedMenuId, setSelectedMenuId] = useState("");
+  const [itemName, setItemName] = useState("");
   const [quantity, setQuantity] = useState(1);
   const [note, setNote] = useState("");
   const [removeItem, setRemoveItem] = useState<Item | null>(null);
   const items = orders[table] ?? [];
   const kitchen = items.filter((item) => item.kind === "Prato" && (item.printedQuantity ?? 0) < item.quantity);
-  const availableMenu = useMemo(() => menu.filter((item) => item.kind === kind), [kind, menu]);
-  useEffect(() => {
-    if (!availableMenu.some((item) => item.id === selectedMenuId)) setSelectedMenuId(availableMenu[0]?.id ?? "");
-  }, [availableMenu, selectedMenuId]);
   function add() {
-    const selectedMenuItem = availableMenu.find((entry) => entry.id === selectedMenuId);
-    if (!selectedMenuItem) return;
+    const name = itemName.trim();
+    if (!name) return;
     const item: Item = {
       id: crypto.randomUUID(),
-      name: selectedMenuItem.name,
-      kind: selectedMenuItem.kind,
+      name,
+      kind,
       quantity: Math.max(1, quantity),
       note: note.trim(),
     };
@@ -79,6 +72,7 @@ export default function OrderPanel({
       };
     });
     setQuantity(1);
+    setItemName("");
     setNote("");
     setOpen(false);
   }
@@ -157,13 +151,14 @@ export default function OrderPanel({
           </div>
           <label className="mt-2 block text-xs font-bold text-slate-500">
             Nome do Prato ou Bebida
-            <select autoFocus className={field} value={selectedMenuId} onChange={(event) => setSelectedMenuId(event.target.value)}>
-              {availableMenu.map((item) => (
-                <option key={item.id} value={item.id}>
-                  {item.name}{item.price ? ` - R$ ${item.price.toFixed(2).replace(".", ",")}` : ""}
-                </option>
-              ))}
-            </select>
+            <input
+              autoFocus
+              className={field}
+              value={itemName}
+              onChange={(event) => setItemName(event.target.value)}
+              placeholder="Digite o nome do prato"
+              maxLength={120}
+            />
           </label>
           <label className="mt-2 block text-xs font-bold text-slate-500">
             Observação
@@ -177,7 +172,7 @@ export default function OrderPanel({
           <button
             className="mt-1 w-full rounded-xl bg-slate-900 px-3 py-3 text-sm font-black text-white disabled:opacity-40"
             onClick={add}
-            disabled={!available || !selectedMenuId}
+            disabled={!available || !itemName.trim()}
           >
             Adicionar item
           </button>

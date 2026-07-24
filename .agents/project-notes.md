@@ -42,3 +42,14 @@
 - Quando juntar os dois sistemas, criar uma area para funcionarios montarem uma lista do que precisa comprar.
 - A lista de compras e uma demanda importante dos donos porque hoje a equipe esquece itens com frequencia; tratar como fluxo operacional central, nao como detalhe secundario.
 - Ideia inicial para lista de compras: funcionarios adicionam item, quantidade, unidade, prioridade/urgencia, observacao e quem solicitou; administradores/donos conseguem marcar comprado, cancelar ou acompanhar pendencias.
+
+## Referencia visual do Azulao
+
+- Projeto de referencia: `C:\Users\PDV01\Desktop\Azulao`.
+- A paleta principal esta declarada em `index.html` no `tailwind.config`: ink `#101722`, navy `#192548`, blue `#176DB6`, light `#EAF4FF`, cream `#FFF8EC` e gold `#D89A3D`.
+- A pagina `cardapio.html` refina os tokens para uso em interfaces: ink `#0B1726`, navy `#102B4E`, blue `#176DB6`, sky `#E9F4FF`, cream `#FFF9EE`, gold `#F0AD43`, line `#DBE4EC`, white `#FFFFFF` e muted `#607080`.
+- Direcao visual observada: fundo creme claro, superficies brancas, navegacao/cabecalhos em azul-marinho quase preto, azul vivo para acoes primarias, dourado para destaque/CTA, tipografia sans-serif para interface e Georgia/serif para titulos.
+- Efeitos recorrentes: bordas suaves, sombras amplas e discretas, fundos escuros translucidos com blur e detalhes circulares/dourados em areas hero.
+- Em 24/07/2026, a paleta foi aplicada ao KitchenPrint em `app/globals.css`, `app/tailwind.css` e `app/occupied.css`; o build de producao passou.
+- O nome atual `KPrint` ainda permanece na interface ate a definicao do novo nome comercial.
+- O lançamento de itens no pedido agora aceita digitação livre do nome do prato/bebida em `app/order-panel.tsx`; o cadastro do cardápio continua disponível separadamente em `/pratos`.

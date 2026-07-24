@@ -1,5 +1,5 @@
-.tables-panel { background: #fffaf6; }
-.table-card { background: #f8fafc; }
-.table-card.occupied { background: #ffd9c7; border: 2px solid #ed6a2d; color: #8f3210; box-shadow: 0 8px 18px #ed6a2d30; }
-.table-card.occupied .table-number { color: #c84f1c; }
-.table-card.selected.occupied { background: #ffbe9d; border-color: #b83f0d; box-shadow: 0 0 0 4px #ed6a2d30, 0 10px 22px #ed6a2d35; }
+.tables-panel { background: #fff9ee; }
+.table-card { background: #f8fbfe; }
+.table-card.occupied { background: #d7ebfb; border: 2px solid #176db6; color: #102b4e; box-shadow: 0 8px 18px rgba(23,109,182,.18); }
+.table-card.occupied .table-number { color: #125c98; }
+.table-card.selected.occupied { background: #b9dcf5; border-color: #125c98; box-shadow: 0 0 0 4px rgba(23,109,182,.18), 0 10px 22px rgba(23,109,182,.2); }

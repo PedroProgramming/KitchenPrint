@@ -28,13 +28,10 @@ type RestaurantTable = {
   area: "salao" | "copa";
   active: boolean;
 };
-type MenuItem = { id: string; name: string; price: number; kind: "Prato" | "Bebida"; active: boolean };
-
 export default function Home() {
   const [user, setUser] = useState<User | null>(null);
   const [orders, setOrders] = useState<Orders>({});
   const [tables, setTables] = useState<RestaurantTable[]>([]);
-  const [menu, setMenu] = useState<MenuItem[]>([]);
   const [selected, setSelected] = useState(1);
   const [loaded, setLoaded] = useState(false);
   const [login, setLogin] = useState({ username: "", password: "" });
@@ -75,10 +72,6 @@ export default function Home() {
     fetch("/api/tables")
       .then((response) => response.json())
       .then((data) => setTables(Array.isArray(data) ? data : []));
-  }, [user]);
-  useEffect(() => {
-    if (!user) return;
-    fetch("/api/menu").then((response) => response.json()).then((data) => setMenu(Array.isArray(data) ? data : [])).catch(() => setMenu([]));
   }, [user]);
   useEffect(() => {
     if (!loaded) return;
@@ -287,7 +280,6 @@ export default function Home() {
           </section>
           <OrderPanel
             table={selected}
-            menu={menu}
             orders={orders}
             setOrders={setOrders}
             available={available.length > 0}

@@ -8,3 +8,25 @@
     font-size: .875rem !important;
   }
 }
+
+/* Tokens do Azulao aplicados aos componentes Tailwind existentes. */
+@layer utilities {
+  [class~="bg-slate-100"]{background-color:#fff9ee!important}
+  [class~="bg-slate-50"]{background-color:#f8fbfe!important}
+  [class~="bg-slate-950"]{background-color:#0b1726!important}
+  [class~="bg-slate-900"]{background-color:#102b4e!important}
+  [class~="bg-orange-500"]{background-color:#176db6!important}
+  [class~="bg-orange-600"]{background-color:#125c98!important}
+  [class~="bg-orange-50"]{background-color:#e9f4ff!important}
+  [class~="bg-orange-100"]{background-color:#d7ebfb!important}
+  [class~="bg-orange-200"]{background-color:#b9dcf5!important}
+  [class~="text-orange-500"],[class~="text-orange-600"]{color:#176db6!important}
+  [class~="text-orange-400"]{color:#f0ad43!important}
+  [class~="text-orange-300"]{color:#b9dcf5!important}
+  [class~="text-orange-900"]{color:#102b4e!important}
+  [class~="border-orange-600"],[class~="border-orange-500"]{border-color:#176db6!important}
+  [class~="border-orange-400"]{border-color:#6aa9d8!important}
+  [class~="border-slate-200"],[class~="border-slate-100"]{border-color:#dbe4ec!important}
+  [class~="text-slate-900"]{color:#0b1726!important}
+  [class~="text-slate-600"],[class~="text-slate-500"]{color:#607080!important}
+}
