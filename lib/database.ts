@@ -3,14 +3,51 @@ import bcrypt from "bcryptjs";
 import crypto from "node:crypto";
 
 export type Role = "admin" | "garcom"; export type Area = "salao" | "copa";
+export type ShoppingTarget = "cozinha" | "salao" | "copa";
+export type ShoppingPriority = "normal" | "urgente";
+export type ShoppingStatus = "pendente" | "comprado" | "cancelado";
 export type RestaurantTable = { id: string; number: number; name: string; area: Area; active: boolean };
-export type StoredItem = { id: string; name: string; kind: "Prato" | "Bebida"; quantity: number; note: string; printedQuantity?: number };
+export type StoredItem = { id: string; name: string; kind: "Prato" | "Bebida"; quantity: number; note: string; printedQuantity?: number; logType?: "addition" | "confirmation" };
 export type MenuItem = { id: string; name: string; price: number; kind: "Prato" | "Bebida"; active: boolean };
 export type User = { id: string; name: string; username: string; role: Role; area: Area | null; tables: number[] };
+export type ShoppingListItem = {
+  id: string;
+  target: ShoppingTarget;
+  name: string;
+  quantity: number;
+  unit: string;
+  priority: ShoppingPriority;
+  note: string;
+  status: ShoppingStatus;
+  requestedBy: string;
+  requestedByUsername: string;
+  resolvedBy: string | null;
+  createdAt: string;
+  resolvedAt: string | null;
+};
 const url = process.env.NEXT_PUBLIC_SUPABASE_URL; const key = process.env.SUPABASE_SERVICE_ROLE_KEY;
 if (!url || !key) console.warn("Supabase não configurado: defina NEXT_PUBLIC_SUPABASE_URL e SUPABASE_SERVICE_ROLE_KEY.");
 const db = createClient(url ?? "https://invalid.supabase.co", key ?? "invalid", { auth: { autoRefreshToken: false, persistSession: false } });
 function mapUser(row: any): User { return { id: row.id, name: row.name, username: row.username, role: row.role, area: row.area ?? null, tables: row.tables_json ?? [] }; }
+function mapShoppingListItem(row: any): ShoppingListItem {
+  const requester = Array.isArray(row.requester) ? row.requester[0] : row.requester;
+  const resolver = Array.isArray(row.resolver) ? row.resolver[0] : row.resolver;
+  return {
+    id: row.id,
+    target: row.target,
+    name: row.name,
+    quantity: Number(row.quantity),
+    unit: row.unit,
+    priority: row.priority,
+    note: row.note ?? "",
+    status: row.status,
+    requestedBy: requester?.name ?? requester?.username ?? "Usuario",
+    requestedByUsername: requester?.username ?? "",
+    resolvedBy: resolver?.name ?? resolver?.username ?? null,
+    createdAt: row.created_at,
+    resolvedAt: row.resolved_at,
+  };
+}
 export async function listTables(user: User) { const { data, error } = await db.from("restaurant_tables").select("id,number,name,area,active").eq("active", true).order("number"); if (error) throw error; return (data ?? []).filter((table) => user.role === "admin" || table.area === user.area).map((table) => ({ ...table, number: Number(table.number) })) as RestaurantTable[]; }
 export async function createTable(input: { number: number; name: string; area: Area }) { const { error } = await db.from("restaurant_tables").insert({ number: input.number, name: input.name.trim() || `Mesa ${input.number}`, area: input.area }); if (error) throw error; }
 export async function allowedTable(user: User, table: number) {
@@ -56,11 +93,11 @@ export async function saveOrders(orders: Record<string, StoredItem[]>, user: Use
       const additions = addedItems(previous, items);
       const confirmations = items.filter((item) => item.kind === "Prato" && Number(item.printedQuantity ?? 0) >= Number(item.quantity || 0) && Number(previous.find((old) => old.id === item.id)?.printedQuantity ?? 0) < Number(item.quantity || 0));
       if (additions.length) {
-        const logged = await db.from("consumption_logs").insert({ session_id: session.id, table_number: number, user_id: user.id, items_json: additions });
+        const logged = await db.from("consumption_logs").insert({ session_id: session.id, table_number: number, user_id: user.id, items_json: additions.map((item) => ({ ...item, logType: "addition" })) });
         if (logged.error) throw logged.error;
       }
       if (confirmations.length) {
-        const confirmed = await db.from("consumption_logs").insert({ session_id: session.id, table_number: number, user_id: user.id, items_json: confirmations });
+        const confirmed = await db.from("consumption_logs").insert({ session_id: session.id, table_number: number, user_id: user.id, items_json: confirmations.map((item) => ({ ...item, logType: "confirmation" })) });
         if (confirmed.error) throw confirmed.error;
       }
     } else {
@@ -89,64 +126,112 @@ export async function createMenuItem(input: { name: string; price: number; kind:
 export async function updateMenuItem(id: string, input: { name: string; price: number; kind: "Prato" | "Bebida" }) { const { error } = await db.from("menu_items").update({ name: input.name.trim(), price: input.price, kind: input.kind }).eq("id", id); if (error) throw error; }
 export async function deleteMenuItem(id: string) { const { error } = await db.from("menu_items").delete().eq("id", id); if (error) throw error; }
 export async function updateUser(id: string, input: { name: string; username: string; area: Area; password?: string }) { const values: Record<string, unknown> = { name: input.name.trim(), username: input.username.trim().toLowerCase(), area: input.area }; if (input.password?.trim()) values.password_hash = await bcrypt.hash(input.password, 10); const { error } = await db.from("users").update(values).eq("id", id).eq("role", "garcom"); if (error) throw error; }
+export async function listShoppingItems() {
+  const { data, error } = await db.from("shopping_list_items").select("id,target,name,quantity,unit,priority,note,status,created_at,resolved_at,requester:requested_by(name,username),resolver:resolved_by(name,username)").order("status").order("priority", { ascending: false }).order("created_at", { ascending: false });
+  if (error) throw error;
+  return (data ?? []).map(mapShoppingListItem);
+}
+export async function createShoppingItem(input: { target: ShoppingTarget; name: string; quantity: number; unit: string; priority: ShoppingPriority; note: string; requestedBy: string }) {
+  const { error } = await db.from("shopping_list_items").insert({ target: input.target, name: input.name.trim(), quantity: input.quantity, unit: input.unit.trim(), priority: input.priority, note: input.note.trim(), requested_by: input.requestedBy });
+  if (error) throw error;
+}
+export async function updateShoppingItemStatus(input: { id: string; status: Exclude<ShoppingStatus, "pendente">; resolvedBy: string }) {
+  const { error } = await db.from("shopping_list_items").update({ status: input.status, resolved_by: input.resolvedBy, resolved_at: new Date().toISOString() }).eq("id", input.id).eq("status", "pendente");
+  if (error) throw error;
+}
 export async function getPrintJobStatus(id: string) { const { data, error } = await db.from("print_jobs").select("status,error_message").eq("id", id).maybeSingle(); if (error) throw error; return data; }
 export async function dashboardStats() { const { data, error } = await db.from("service_sessions").select("id,table_number,area,opened_at,released_at,opened_by,users!service_sessions_opened_by_fkey(name,username)").order("opened_at", { ascending: false }); if (error) throw error; const sessions = (data ?? []) as any[]; const byWaiter = new Map<string, { name: string; area: string; tables: number; totalMinutes: number }>(); let totalMinutes = 0; let closed = 0; for (const session of sessions) { const key = String(session.opened_by); const name = session.users?.name ?? session.users?.username ?? "Usuário"; const current = byWaiter.get(key) ?? { name, area: session.area ?? "salao", tables: 0, totalMinutes: 0 }; current.tables += 1; if (session.released_at) { const minutes = Math.max(0, (new Date(session.released_at).getTime() - new Date(session.opened_at).getTime()) / 60000); current.totalMinutes += minutes; totalMinutes += minutes; closed += 1; } byWaiter.set(key, current); } return { totalTables: sessions.length, openTables: sessions.length - closed, closedTables: closed, averageMinutes: closed ? Math.round(totalMinutes / closed) : 0, byWaiter: [...byWaiter.values()].map((row) => ({ ...row, averageMinutes: row.tables ? Math.round(row.totalMinutes / row.tables) : 0 })).sort((a, b) => b.tables - a.tables), recent: sessions.slice(0, 20) }; }
 export async function dashboardStatsForDate(date?: string) {
   return dashboardStatsForRange(date, date);
 }
 
+function utcIsoFromSaoPauloDate(date: string, edge: "start" | "end") {
+  const [year, month, day] = date.split("-").map(Number);
+  const hour = edge === "start" ? 0 : 23;
+  const minute = edge === "start" ? 1 : 59;
+  const second = edge === "start" ? 0 : 59;
+  const millisecond = edge === "start" ? 0 : 999;
+  return new Date(Date.UTC(year, month - 1, day, hour + 3, minute, second, millisecond)).toISOString();
+}
+
 export async function dashboardStatsForRange(from?: string, to?: string) {
-  const start = from ? `${from}T00:00:00.000Z` : undefined;
-  const end = to ? `${to}T23:59:59.999Z` : undefined;
-  let query = db.from("service_sessions").select("id,table_number,area,opened_at,released_at,opened_by,closed_items_json,users!service_sessions_opened_by_fkey(name,username)").order("opened_at", { ascending: false });
-  if (start && end) query = query.or(`released_at.gte.${start},released_at.is.null`).or(`released_at.lte.${end},released_at.is.null`);
-  const { data, error } = await query;
+  const start = from ? utcIsoFromSaoPauloDate(from, "start") : undefined;
+  const end = to ? utcIsoFromSaoPauloDate(to, "end") : undefined;
+  let sessionsQuery = db.from("service_sessions").select("id,table_number,area,opened_at,released_at,opened_by,users!service_sessions_opened_by_fkey(name,username)").order("opened_at", { ascending: false });
+  if (start) sessionsQuery = sessionsQuery.gte("released_at", start);
+  if (end) sessionsQuery = sessionsQuery.lte("released_at", end);
+  const { data, error } = await sessionsQuery;
   if (error) throw error;
-  const sessions = (data ?? []) as any[];
-  const closedSessions = sessions.filter((session) => session.released_at && (!start || new Date(session.released_at) >= new Date(start)) && (!end || new Date(session.released_at) <= new Date(end)));
-  const dishesByWaiter = new Map<string, number>();
+  const closedSessions = ((data ?? []) as any[]).filter((session) => session.released_at);
   const byDish = new Map<string, { name: string; quantity: number; orders: number; tables: Set<number> }>();
-  const sessionsMissingSnapshot = closedSessions.filter((session) => !Array.isArray(session.closed_items_json) || !session.closed_items_json.length);
-  function addDishStats(items: StoredItem[], tableNumber: number) {
+  const byWaiter = new Map<string, { name: string; area: string; tables: Set<number>; dishes: number; totalMinutes: number; closedTables: number }>();
+
+  function waiterRow(key: string, input: { name?: string; username?: string; area?: string }) {
+    const current = byWaiter.get(key) ?? { name: input.name ?? input.username ?? "Usuario", area: input.area ?? "salao", tables: new Set<number>(), dishes: 0, totalMinutes: 0, closedTables: 0 };
+    if (input.name || input.username) current.name = input.name ?? input.username ?? current.name;
+    if (input.area) current.area = input.area;
+    byWaiter.set(key, current);
+    return current;
+  }
+
+  function relatedUser(value: any) {
+    return Array.isArray(value) ? value[0] : value;
+  }
+
+  function addDishStats(items: StoredItem[], tableNumber: number, waiterId?: string) {
     for (const item of items.filter((entry) => entry.kind === "Prato")) {
       const key = item.name.trim().toLowerCase();
       const current = byDish.get(key) ?? { name: item.name, quantity: 0, orders: 0, tables: new Set<number>() };
-      current.quantity += Number(item.quantity || 0);
+      const quantity = Number(item.quantity || 0);
+      current.quantity += quantity;
       current.orders += 1;
       current.tables.add(Number(tableNumber));
       byDish.set(key, current);
+      if (waiterId) {
+        const waiter = byWaiter.get(waiterId);
+        if (waiter) waiter.dishes += quantity;
+      }
     }
   }
+
+  let logsQuery = db.from("consumption_logs").select("session_id,table_number,user_id,items_json,created_at,users!consumption_logs_user_id_fkey(name,username,area)").order("created_at", { ascending: true });
+  if (start) logsQuery = logsQuery.gte("created_at", start);
+  if (end) logsQuery = logsQuery.lte("created_at", end);
+  const { data: logs, error: logsError } = await logsQuery;
+  if (logsError) throw logsError;
+  const logsBySession = new Map<string, any[]>();
+  for (const log of logs ?? []) {
+    logsBySession.set(log.session_id, [...(logsBySession.get(log.session_id) ?? []), log]);
+    const user = relatedUser(log.users);
+    const waiter = waiterRow(String(log.user_id), { name: user?.name, username: user?.username, area: user?.area });
+    waiter.tables.add(Number(log.table_number));
+  }
+
+  for (const sessionLogs of logsBySession.values()) {
+    const taggedAdditions = sessionLogs.flatMap((log) => ((log.items_json ?? []) as StoredItem[]).filter((item) => item.kind === "Prato" && item.logType === "addition").map((item) => ({ item, log })));
+    const legacyAdditions = sessionLogs.flatMap((log) => ((log.items_json ?? []) as StoredItem[]).filter((item) => item.kind === "Prato" && item.logType !== "confirmation" && Number(item.printedQuantity ?? 0) < Number(item.quantity || 0)).map((item) => ({ item, log })));
+    const source = taggedAdditions.length || legacyAdditions.length ? [...taggedAdditions, ...legacyAdditions] : sessionLogs.flatMap((log) => ((log.items_json ?? []) as StoredItem[]).filter((item) => item.kind === "Prato" && item.logType !== "confirmation").map((item) => ({ item, log })));
+    for (const { item, log } of source) addDishStats([item], Number(log.table_number), String(log.user_id));
+  }
+
+  let totalMinutes = 0;
   for (const session of closedSessions) {
-    const finalItems = (session.closed_items_json ?? []) as StoredItem[];
-    addDishStats(finalItems, Number(session.table_number));
-    const dishes = finalItems.filter((item) => item.kind === "Prato").reduce((total, item) => total + Number(item.quantity || 0), 0);
-    dishesByWaiter.set(String(session.opened_by), (dishesByWaiter.get(String(session.opened_by)) ?? 0) + dishes);
-  }
-  if (sessionsMissingSnapshot.length) {
-    const { data: logs, error: logsError } = await db.from("consumption_logs").select("session_id,items_json").in("session_id", sessionsMissingSnapshot.map((session) => session.id));
-    if (logsError) throw logsError;
-    const waiterBySession = new Map(sessionsMissingSnapshot.map((session) => [session.id, String(session.opened_by)]));
-    const logsBySession = new Map<string, any[]>();
-    for (const log of logs ?? []) logsBySession.set(log.session_id, [...(logsBySession.get(log.session_id) ?? []), log]);
-    for (const [sessionId, sessionLogs] of logsBySession) {
-      const waiterId = waiterBySession.get(sessionId);
-      if (!waiterId) continue;
-      const tableNumber = Number(sessionsMissingSnapshot.find((session) => session.id === sessionId)?.table_number ?? 0);
-      const hasConfirmation = sessionLogs.some((log) => ((log.items_json ?? []) as StoredItem[]).some((item) => item.kind === "Prato" && Number(item.printedQuantity ?? 0) >= Number(item.quantity || 0)));
-      const fallbackItems = sessionLogs.flatMap((log) => (log.items_json ?? []) as StoredItem[]).filter((item) => item.kind === "Prato" && (!hasConfirmation || Number(item.printedQuantity ?? 0) >= Number(item.quantity || 0)));
-      addDishStats(fallbackItems, tableNumber);
-      const dishes = fallbackItems.reduce((total, item) => total + Number(item.quantity || 0), 0);
-      dishesByWaiter.set(waiterId, (dishesByWaiter.get(waiterId) ?? 0) + dishes);
+    const key = String(session.opened_by);
+    const waiter = waiterRow(key, { name: session.users?.name, username: session.users?.username, area: session.area });
+    waiter.tables.add(Number(session.table_number));
+    if (session.released_at) {
+      const minutes = Math.max(0, (new Date(session.released_at).getTime() - new Date(session.opened_at).getTime()) / 60000);
+      waiter.totalMinutes += minutes;
+      waiter.closedTables += 1;
+      totalMinutes += minutes;
     }
   }
-  const byWaiter = new Map<string, { name: string; area: string; tables: number; dishes: number; totalMinutes: number }>();
+
   const currentOrders = await db.from("table_orders").select("table_number,items_json");
   if (currentOrders.error) throw currentOrders.error;
   const openTables = (currentOrders.data ?? []).filter((row) => Array.isArray(row.items_json) && row.items_json.length).length;
-  let totalMinutes = 0; let closed = 0;
-  for (const session of closedSessions) { const key = String(session.opened_by); const current = byWaiter.get(key) ?? { name: session.users?.name ?? session.users?.username ?? "Usuario", area: session.area ?? "salao", tables: 0, dishes: dishesByWaiter.get(key) ?? 0, totalMinutes: 0 }; current.tables += 1; const minutes = Math.max(0, (new Date(session.released_at).getTime() - new Date(session.opened_at).getTime()) / 60000); current.totalMinutes += minutes; totalMinutes += minutes; closed += 1; byWaiter.set(key, current); }
-  const waiterRows = [...byWaiter.values()].map((row) => ({ name: row.name, area: row.area, tables: row.tables, dishes: row.dishes, averageMinutes: row.tables ? Math.round(row.totalMinutes / row.tables) : 0 })).sort((a, b) => b.dishes - a.dishes);
+  const closed = closedSessions.length;
+  const waiterRows = [...byWaiter.values()].map((row) => ({ name: row.name, area: row.area, tables: row.tables.size, dishes: row.dishes, averageMinutes: row.closedTables ? Math.round(row.totalMinutes / row.closedTables) : 0 })).sort((a, b) => b.dishes - a.dishes || b.tables - a.tables || a.name.localeCompare(b.name));
   const dishRows = [...byDish.values()].map((row) => ({ name: row.name, quantity: row.quantity, orders: row.orders, tables: row.tables.size })).sort((a, b) => b.quantity - a.quantity || b.orders - a.orders || a.name.localeCompare(b.name));
   return { totalTables: closed, openTables, closedTables: closed, totalDishes: waiterRows.reduce((total, row) => total + row.dishes, 0), uniqueDishes: dishRows.length, dishOrders: dishRows.reduce((total, row) => total + row.orders, 0), averageMinutes: closed ? Math.round(totalMinutes / closed) : 0, byWaiter: waiterRows, byDish: dishRows };
 }

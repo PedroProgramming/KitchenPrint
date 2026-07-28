@@ -78,6 +78,7 @@ export default function Dashboard() {
   }, [range, user]);
 
   const topDish = useMemo(() => stats?.byDish[0], [stats]);
+  const periodLabel = range.from === range.to ? `${range.from} das 00:01 as 23:59` : `${range.from} 00:01 ate ${range.to} 23:59`;
 
   function applyQuickFilter(nextFilter: QuickFilter) {
     setFilter(nextFilter);
@@ -100,7 +101,7 @@ export default function Dashboard() {
           <div>
             <p className="text-xs font-black uppercase tracking-widest text-orange-500">Gestao</p>
             <h1 className="text-3xl font-black sm:text-4xl">Dashboard</h1>
-            <p className="text-slate-500">Resumo dos atendimentos e pratos vendidos.</p>
+            <p className="text-slate-500">Resumo filtrado por lancamentos do periodo: {periodLabel}.</p>
           </div>
           <div className="flex flex-wrap items-end gap-2">
             <label className="text-xs font-black uppercase tracking-wider text-slate-500">Inicio<input className="mt-1 block rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm font-bold" type="date" value={range.from} onChange={(event) => updateCustomRange({ from: event.target.value })} /></label>
@@ -115,9 +116,9 @@ export default function Dashboard() {
         <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-6">
           <Card label="Mesas fechadas" value={stats.closedTables} />
           <Card label="Em atendimento" value={stats.openTables} accent />
-          <Card label="Pratos servidos" value={stats.totalDishes} />
+          <Card label="Pratos vendidos" value={stats.totalDishes} />
           <Card label="Pratos diferentes" value={stats.uniqueDishes} />
-          <Card label="Lancamentos" value={stats.dishOrders} />
+          <Card label="Registros" value={stats.dishOrders} />
           <Card label="Tempo medio" value={`${stats.averageMinutes} min`} />
         </div>
 
@@ -126,9 +127,9 @@ export default function Dashboard() {
             <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
               <div>
                 <h2 className="text-xl font-black">Pratos mais pedidos</h2>
-                <p className="text-sm text-slate-500">Quantidade total, vezes em que o prato entrou em pedido e mesas atendidas.</p>
+                <p className="text-sm text-slate-500">Apenas pratos vendidos no periodo filtrado.</p>
               </div>
-              {topDish && <div className="rounded-xl bg-orange-50 px-4 py-2 text-right"><p className="text-xs font-black uppercase tracking-wider text-orange-600">Mais vendido</p><strong className="text-sm">{topDish.name}</strong></div>}
+              {topDish && <div className="rounded-xl bg-orange-50 px-4 py-2 text-right"><p className="text-xs font-black uppercase tracking-wider text-orange-600">Mais vendido</p><strong className="text-sm">{topDish.name}</strong><span className="block text-xs font-bold text-orange-700">{topDish.quantity} vendido(s)</span></div>}
             </div>
             {stats.byDish.length ? <div className="overflow-x-auto">
               <table className="w-full min-w-[680px] text-left text-sm">
@@ -142,7 +143,7 @@ export default function Dashboard() {
             <h2 className="mb-4 text-xl font-black">Atendimento por garcom</h2>
             {stats.byWaiter.length ? <div className="overflow-x-auto">
               <table className="w-full min-w-[460px] text-left text-sm">
-                <thead className="border-b border-slate-100 text-xs uppercase tracking-wider text-slate-400"><tr><th className="pb-3">Usuario</th><th className="pb-3">Area</th><th className="pb-3 text-right">Mesas</th><th className="pb-3 text-right">Pratos</th><th className="pb-3 text-right">Tempo</th></tr></thead>
+                <thead className="border-b border-slate-100 text-xs uppercase tracking-wider text-slate-400"><tr><th className="pb-3">Usuario</th><th className="pb-3">Area</th><th className="pb-3 text-right">Mesas</th><th className="pb-3 text-right">Pratos vendidos</th><th className="pb-3 text-right">Tempo</th></tr></thead>
                 <tbody className="divide-y divide-slate-100">{stats.byWaiter.map((waiter) => <tr key={waiter.name}><td className="py-3 font-bold">{waiter.name}</td><td className="py-3">{waiter.area === "copa" ? "Copa" : "Salao"}</td><td className="py-3 text-right font-black text-slate-700">{waiter.tables}</td><td className="py-3 text-right font-black text-orange-600">{waiter.dishes}</td><td className="py-3 text-right">{waiter.averageMinutes} min</td></tr>)}</tbody>
               </table>
             </div> : <p className="py-8 text-center text-slate-400">Nao ha atendimentos registrados neste periodo.</p>}
