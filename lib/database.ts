@@ -6,6 +6,7 @@ export type Role = "admin" | "garcom"; export type Area = "salao" | "copa";
 export type ShoppingTarget = "cozinha" | "salao" | "copa";
 export type ShoppingPriority = "normal" | "urgente";
 export type ShoppingStatus = "pendente" | "comprado" | "cancelado";
+export type ShoppingCatalogItem = { id: string; target: ShoppingTarget; category: string; name: string; defaultUnit: string; active: boolean };
 export type RestaurantTable = { id: string; number: number; name: string; area: Area; active: boolean };
 export type StoredItem = { id: string; name: string; kind: "Prato" | "Bebida"; quantity: number; note: string; printedQuantity?: number; logType?: "addition" | "confirmation" };
 export type MenuItem = { id: string; name: string; price: number; kind: "Prato" | "Bebida"; active: boolean };
@@ -126,8 +127,10 @@ export async function createMenuItem(input: { name: string; price: number; kind:
 export async function updateMenuItem(id: string, input: { name: string; price: number; kind: "Prato" | "Bebida" }) { const { error } = await db.from("menu_items").update({ name: input.name.trim(), price: input.price, kind: input.kind }).eq("id", id); if (error) throw error; }
 export async function deleteMenuItem(id: string) { const { error } = await db.from("menu_items").delete().eq("id", id); if (error) throw error; }
 export async function updateUser(id: string, input: { name: string; username: string; area: Area; password?: string }) { const values: Record<string, unknown> = { name: input.name.trim(), username: input.username.trim().toLowerCase(), area: input.area }; if (input.password?.trim()) values.password_hash = await bcrypt.hash(input.password, 10); const { error } = await db.from("users").update(values).eq("id", id).eq("role", "garcom"); if (error) throw error; }
-export async function listShoppingItems() {
-  const { data, error } = await db.from("shopping_list_items").select("id,target,name,quantity,unit,priority,note,status,created_at,resolved_at,requester:requested_by(name,username),resolver:resolved_by(name,username)").order("status").order("priority", { ascending: false }).order("created_at", { ascending: false });
+export async function listShoppingItems(target?: ShoppingTarget) {
+  let query = db.from("shopping_list_items").select("id,target,name,quantity,unit,priority,note,status,created_at,resolved_at,requester:requested_by(name,username),resolver:resolved_by(name,username)").order("status").order("priority", { ascending: false }).order("created_at", { ascending: false });
+  if (target) query = query.eq("target", target);
+  const { data, error } = await query;
   if (error) throw error;
   return (data ?? []).map(mapShoppingListItem);
 }
@@ -137,6 +140,26 @@ export async function createShoppingItem(input: { target: ShoppingTarget; name: 
 }
 export async function updateShoppingItemStatus(input: { id: string; status: Exclude<ShoppingStatus, "pendente">; resolvedBy: string }) {
   const { error } = await db.from("shopping_list_items").update({ status: input.status, resolved_by: input.resolvedBy, resolved_at: new Date().toISOString() }).eq("id", input.id).eq("status", "pendente");
+  if (error) throw error;
+}
+export async function listShoppingCatalog(target?: ShoppingTarget, includeInactive = false) {
+  let query = db.from("shopping_catalog_items").select("id,target,category,name,default_unit,active").order("target").order("category").order("name");
+  if (target) query = query.eq("target", target);
+  if (!includeInactive) query = query.eq("active", true);
+  const { data, error } = await query;
+  if (error) throw error;
+  return (data ?? []).map((item) => ({ id: item.id, target: item.target, category: item.category, name: item.name, defaultUnit: item.default_unit, active: item.active })) as ShoppingCatalogItem[];
+}
+export async function createShoppingCatalogItem(input: { target: ShoppingTarget; category: string; name: string; defaultUnit: string }) {
+  const { error } = await db.from("shopping_catalog_items").insert({ target: input.target, category: input.category.trim(), name: input.name.trim(), default_unit: input.defaultUnit.trim() });
+  if (error) throw error;
+}
+export async function updateShoppingCatalogItem(input: { id: string; target: ShoppingTarget; category: string; name: string; defaultUnit: string; active: boolean }) {
+  const { error } = await db.from("shopping_catalog_items").update({ target: input.target, category: input.category.trim(), name: input.name.trim(), default_unit: input.defaultUnit.trim(), active: input.active, updated_at: new Date().toISOString() }).eq("id", input.id);
+  if (error) throw error;
+}
+export async function deleteShoppingCatalogItem(id: string) {
+  const { error } = await db.from("shopping_catalog_items").update({ active: false, updated_at: new Date().toISOString() }).eq("id", id);
   if (error) throw error;
 }
 export async function getPrintJobStatus(id: string) { const { data, error } = await db.from("print_jobs").select("status,error_message").eq("id", id).maybeSingle(); if (error) throw error; return data; }

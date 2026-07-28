@@ -25,6 +25,24 @@ type Form = { target: Target; name: string; quantity: string; unit: string; prio
 const targetLabels: Record<Target, string> = { cozinha: "Cozinha", salao: "Salao", copa: "Copa" };
 const emptyForm = (target: Target): Form => ({ target, name: "", quantity: "1", unit: "un", priority: "normal", note: "" });
 const units = ["un", "kg", "g", "L", "ml", "cx", "pct", "fardo"];
+const catalog: Record<Target, Record<string, Array<{ name: string; unit: string }>>> = {
+  cozinha: {
+    "Mercearia": [{ name: "Arroz", unit: "kg" }, { name: "Feijão", unit: "kg" }, { name: "Óleo", unit: "L" }, { name: "Sal", unit: "kg" }, { name: "Açúcar", unit: "kg" }, { name: "Farinha de trigo", unit: "kg" }],
+    "Hortifruti": [{ name: "Tomate", unit: "kg" }, { name: "Cebola", unit: "kg" }, { name: "Alho", unit: "kg" }],
+    "Limpeza": [{ name: "Detergente", unit: "un" }, { name: "Esponja", unit: "un" }, { name: "Papel toalha", unit: "pct" }],
+  },
+  salao: {
+    "Viagem": [{ name: "Sacola pequena", unit: "pct" }, { name: "Sacola grande", unit: "pct" }, { name: "Embalagem para viagem", unit: "pct" }],
+    "Atendimento": [{ name: "Guardanapo", unit: "pct" }, { name: "Canudo", unit: "pct" }, { name: "Copo descartável", unit: "pct" }, { name: "Bobina para máquina", unit: "un" }],
+    "Higiene": [{ name: "Álcool", unit: "L" }, { name: "Papel toalha", unit: "pct" }, { name: "Luva descartável", unit: "cx" }],
+  },
+  copa: {
+    "Bebidas": [{ name: "Café", unit: "pct" }, { name: "Açúcar", unit: "kg" }, { name: "Leite", unit: "L" }, { name: "Água", unit: "fardo" }, { name: "Gelo", unit: "kg" }],
+    "Descartáveis": [{ name: "Copo descartável", unit: "pct" }, { name: "Guardanapo", unit: "pct" }],
+    "Limpeza": [{ name: "Detergente", unit: "un" }, { name: "Esponja", unit: "un" }],
+  },
+};
+type CatalogItem = { id: string; target: Target; category: string; name: string; defaultUnit: string; active: boolean };
 
 function defaultTarget(user: SidebarUser | null): Target {
   if (user?.area === "salao") return "salao";
@@ -41,6 +59,8 @@ export default function ShoppingListPage() {
   const [items, setItems] = useState<ShoppingItem[]>([]);
   const [activeTarget, setActiveTarget] = useState<Target>("cozinha");
   const [form, setForm] = useState<Form>(emptyForm("cozinha"));
+  const [catalogItem, setCatalogItem] = useState("");
+  const [catalogItems, setCatalogItems] = useState<CatalogItem[] | null>(null);
   const [authError, setAuthError] = useState("");
   const [actionError, setActionError] = useState("");
   const [saving, setSaving] = useState(false);
@@ -61,6 +81,7 @@ export default function ShoppingListPage() {
         setActiveTarget(target);
         setForm(emptyForm(target));
         void refresh();
+        fetch("/api/shopping-catalog").then((response) => response.ok ? response.json() : []).then((data) => setCatalogItems(data));
       })
       .catch((cause) => setAuthError(cause.message));
   }, []);
@@ -68,6 +89,8 @@ export default function ShoppingListPage() {
   const pending = useMemo(() => items.filter((item) => item.status === "pendente"), [items]);
   const completed = useMemo(() => items.filter((item) => item.status !== "pendente").slice(0, 24), [items]);
   const targetItems = pending.filter((item) => item.target === activeTarget);
+  const availableCatalog = catalogItems === null ? Object.entries(catalog[form.target]).flatMap(([category, items]) => items.map((item) => ({ ...item, category }))) : catalogItems.filter((item) => item.target === form.target && item.active);
+  const catalogGroups = availableCatalog.reduce<Record<string, Array<{ name: string; defaultUnit?: string; unit?: string }>>>((groups, item) => { (groups[item.category] ??= []).push(item); return groups; }, {});
   const counts = {
     cozinha: pending.filter((item) => item.target === "cozinha").length,
     salao: pending.filter((item) => item.target === "salao").length,
@@ -87,6 +110,7 @@ export default function ShoppingListPage() {
     setSaving(false);
     if (!response.ok) return setActionError(result.error);
     setForm(emptyForm(form.target));
+    setCatalogItem("");
     void refresh();
   }
 
@@ -105,6 +129,14 @@ export default function ShoppingListPage() {
   function selectTarget(target: Target) {
     setActiveTarget(target);
     setForm((current) => ({ ...current, target }));
+    setCatalogItem("");
+  }
+
+  function selectCatalogItem(value: string) {
+    setCatalogItem(value);
+    const item = availableCatalog.find((candidate) => candidate.name === value);
+    if (item) setForm((current) => ({ ...current, name: item.name, unit: "defaultUnit" in item ? item.defaultUnit : item.unit }));
+    else setForm((current) => ({ ...current, name: "" }));
   }
 
   if (authError) return <main className="grid min-h-screen place-items-center bg-slate-100 p-5"><div className="rounded-2xl bg-white p-8 text-center shadow"><h1 className="text-xl font-black">Acesso restrito</h1><p className="mt-2 text-slate-500">{authError}</p><a className="mt-5 inline-block cursor-pointer rounded-xl bg-orange-500 px-4 py-2 font-bold text-white" href="/">Voltar</a></div></main>;
@@ -119,6 +151,7 @@ export default function ShoppingListPage() {
             <p className="text-xs font-black uppercase tracking-widest text-orange-500">Compras</p>
             <h1 className="text-3xl font-black sm:text-4xl">Lista de compras</h1>
             <p className="text-slate-500">Solicitacoes separadas por Cozinha, Salao e Copa.</p>
+            {isAdmin && <a className="mt-3 inline-block rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm font-black text-slate-700" href="/lista/catalogo">Gerenciar itens</a>}
           </div>
           <div className="grid grid-cols-3 gap-2 text-center">
             {(["cozinha", "salao", "copa"] as Target[]).map((target) => <div key={target} className="rounded-xl border border-slate-200 bg-white px-4 py-2 shadow-sm"><strong className="block text-2xl font-black">{counts[target]}</strong><span className="text-xs font-bold text-slate-500">{targetLabels[target]}</span></div>)}
@@ -128,15 +161,15 @@ export default function ShoppingListPage() {
         <div className="grid gap-5 xl:grid-cols-[360px_1fr]">
           <form className="h-fit rounded-2xl border border-slate-200 bg-white p-5 shadow-sm" onSubmit={save}>
             <h2 className="mb-4 text-xl font-black">Adicionar item</h2>
-            <label className="mb-3 block text-sm font-bold text-slate-600">Lista
-              <select className="mt-1 w-full" value={form.target} onChange={(event) => selectTarget(event.target.value as Target)}>
-                <option value="cozinha">Cozinha</option>
-                <option value="salao">Salao</option>
-                <option value="copa">Copa</option>
+            <label className="mb-3 block text-sm font-bold text-slate-600">Item pré-cadastrado
+              <select className="mt-1 w-full" value={catalogItem} onChange={(event) => selectCatalogItem(event.target.value)}>
+                <option value="">Selecione um item ou escolha Outro item</option>
+                {Object.entries(catalogGroups).map(([category, items]) => <optgroup key={category} label={category}>{items.map((item) => <option key={item.name} value={item.name}>{item.name}</option>)}</optgroup>)}
+                <option value="outro">Outro item</option>
               </select>
             </label>
             <label className="mb-3 block text-sm font-bold text-slate-600">Item
-              <input className="mt-1 w-full" value={form.name} onChange={(event) => setForm({ ...form, name: event.target.value })} placeholder="Ex: detergente, tomate, guardanapo" required />
+              <input className="mt-1 w-full" value={form.name} onChange={(event) => { setCatalogItem("outro"); setForm({ ...form, name: event.target.value }); }} placeholder="Digite somente se não estiver na lista" required />
             </label>
             <div className="mb-3 grid grid-cols-[1fr_110px] gap-3">
               <label className="block text-sm font-bold text-slate-600">Quantidade
@@ -162,9 +195,9 @@ export default function ShoppingListPage() {
           </form>
 
           <div className="min-w-0">
-            <div className="mb-4 flex flex-wrap gap-2">
+            {isAdmin && <div className="mb-4 flex flex-wrap gap-2">
               {(["cozinha", "salao", "copa"] as Target[]).map((target) => <button key={target} className={`rounded-xl px-4 py-2 text-sm font-black transition ${activeTarget === target ? "bg-orange-500 text-white" : "border border-slate-200 bg-white text-slate-600 hover:bg-slate-50"}`} type="button" onClick={() => selectTarget(target)}>{targetLabels[target]} ({counts[target]})</button>)}
-            </div>
+            </div>}
 
             <section className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
               <div className="mb-4">
