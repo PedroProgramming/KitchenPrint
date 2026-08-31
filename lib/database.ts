@@ -25,6 +25,46 @@ export type ShoppingListItem = {
   createdAt: string;
   resolvedAt: string | null;
 };
+export type FinanceEntryType = "receita" | "despesa";
+export type FinancePaymentMethod = "dinheiro" | "pix" | "cartao" | "boleto" | "outro";
+export type FinanceStatus = "pago" | "pendente" | "cancelado";
+export type CashRegister = {
+  id: string;
+  businessDate: string;
+  openingAmount: number;
+  closingAmount: number | null;
+  expectedAmount: number | null;
+  differenceAmount: number | null;
+  openedAt: string;
+  closedAt: string | null;
+  openedBy: string;
+  closedBy: string | null;
+  notes: string;
+};
+export type FinanceEntry = {
+  id: string;
+  cashRegisterId: string | null;
+  entryDate: string;
+  type: FinanceEntryType;
+  category: string;
+  description: string;
+  amount: number;
+  paymentMethod: FinancePaymentMethod;
+  status: FinanceStatus;
+  dueDate: string | null;
+  paidAt: string | null;
+  supplier: string;
+  documentNumber: string;
+  documentNote: string;
+  proofImageName: string;
+  proofImageDataUrl: string;
+  installmentGroupId: string | null;
+  installmentNumber: number;
+  installmentTotal: number;
+  createdBy: string;
+  createdAt: string;
+};
+export type FinanceCategory = { id: string; name: string };
 const url = process.env.NEXT_PUBLIC_SUPABASE_URL; const key = process.env.SUPABASE_SERVICE_ROLE_KEY;
 if (!url || !key) console.warn("Supabase não configurado: defina NEXT_PUBLIC_SUPABASE_URL e SUPABASE_SERVICE_ROLE_KEY.");
 const db = createClient(url ?? "https://invalid.supabase.co", key ?? "invalid", { auth: { autoRefreshToken: false, persistSession: false } });
@@ -46,6 +86,52 @@ function mapShoppingListItem(row: any): ShoppingListItem {
     resolvedBy: resolver?.name ?? resolver?.username ?? null,
     createdAt: row.created_at,
     resolvedAt: row.resolved_at,
+  };
+}
+function mapCashRegister(row: any): CashRegister {
+  const opener = Array.isArray(row.opener) ? row.opener[0] : row.opener;
+  const closer = Array.isArray(row.closer) ? row.closer[0] : row.closer;
+  const openingAmount = Number(row.opening_amount ?? 0);
+  const closingAmount = row.closing_amount === null ? null : Number(row.closing_amount);
+  const expectedAmount = row.expected_amount === null ? null : Number(row.expected_amount);
+  return {
+    id: row.id,
+    businessDate: row.business_date,
+    openingAmount,
+    closingAmount,
+    expectedAmount,
+    differenceAmount: closingAmount === null || expectedAmount === null ? null : closingAmount - expectedAmount,
+    openedAt: row.opened_at,
+    closedAt: row.closed_at,
+    openedBy: opener?.name ?? opener?.username ?? "Usuario",
+    closedBy: closer?.name ?? closer?.username ?? null,
+    notes: row.notes ?? "",
+  };
+}
+function mapFinanceEntry(row: any): FinanceEntry {
+  const creator = Array.isArray(row.creator) ? row.creator[0] : row.creator;
+  return {
+    id: row.id,
+    cashRegisterId: row.cash_register_id,
+    entryDate: row.entry_date,
+    type: row.type,
+    category: row.category,
+    description: row.description,
+    amount: Number(row.amount ?? 0),
+    paymentMethod: row.payment_method,
+    status: row.status,
+    dueDate: row.due_date,
+    paidAt: row.paid_at,
+    supplier: row.supplier ?? "",
+    documentNumber: row.document_number ?? "",
+    documentNote: row.document_note ?? "",
+    proofImageName: row.proof_image_name ?? "",
+    proofImageDataUrl: row.proof_image_data_url ?? "",
+    installmentGroupId: row.installment_group_id ?? null,
+    installmentNumber: Number(row.installment_number ?? 1),
+    installmentTotal: Number(row.installment_total ?? 1),
+    createdBy: creator?.name ?? creator?.username ?? "Usuario",
+    createdAt: row.created_at,
   };
 }
 export async function listTables(user: User) { const { data, error } = await db.from("restaurant_tables").select("id,number,name,area,active").eq("active", true).order("number"); if (error) throw error; return (data ?? []).filter((table) => user.role === "admin" || table.area === user.area).map((table) => ({ ...table, number: Number(table.number) })) as RestaurantTable[]; }
@@ -137,6 +223,119 @@ export async function createShoppingItem(input: { target: ShoppingTarget; name: 
 }
 export async function updateShoppingItemStatus(input: { id: string; status: Exclude<ShoppingStatus, "pendente">; resolvedBy: string }) {
   const { error } = await db.from("shopping_list_items").update({ status: input.status, resolved_by: input.resolvedBy, resolved_at: new Date().toISOString() }).eq("id", input.id).eq("status", "pendente");
+  if (error) throw error;
+}
+export async function getFinanceSnapshot(from?: string, to?: string) {
+  const entrySelect = "id,cash_register_id,entry_date,type,category,description,amount,payment_method,status,due_date,paid_at,supplier,document_number,document_note,proof_image_name,proof_image_data_url,installment_group_id,installment_number,installment_total,created_at,creator:created_by(name,username)";
+  let cashQuery = db.from("cash_registers").select("id,business_date,opening_amount,closing_amount,expected_amount,opened_at,closed_at,notes,opener:opened_by(name,username),closer:closed_by(name,username)").order("business_date", { ascending: false });
+  if (from) cashQuery = cashQuery.gte("business_date", from);
+  if (to) cashQuery = cashQuery.lte("business_date", to);
+  const { data: cashRows, error: cashError } = await cashQuery;
+  if (cashError) throw cashError;
+
+  let entriesQuery = db.from("finance_entries").select(entrySelect).order("entry_date", { ascending: false }).order("created_at", { ascending: false });
+  if (from) entriesQuery = entriesQuery.gte("entry_date", from);
+  if (to) entriesQuery = entriesQuery.lte("entry_date", to);
+  const { data: entryRows, error: entriesError } = await entriesQuery;
+  if (entriesError) throw entriesError;
+
+  const cashRegisters = (cashRows ?? []).map(mapCashRegister);
+  const cashIds = cashRegisters.map((cash) => cash.id);
+  let linkedEntryRows: any[] = [];
+  if (cashIds.length) {
+    const linked = await db.from("finance_entries").select(entrySelect).in("cash_register_id", cashIds).order("entry_date", { ascending: false }).order("created_at", { ascending: false });
+    if (linked.error) throw linked.error;
+    linkedEntryRows = linked.data ?? [];
+  }
+  const mergedRows = new Map<string, any>();
+  for (const row of [...(entryRows ?? []), ...linkedEntryRows]) mergedRows.set(row.id, row);
+  const entries = [...mergedRows.values()].map(mapFinanceEntry);
+  const categories = await listFinanceCategories();
+  const paidEntries = entries.filter((entry) => entry.status === "pago");
+  const revenue = paidEntries.filter((entry) => entry.type === "receita").reduce((total, entry) => total + entry.amount, 0);
+  const expenses = paidEntries.filter((entry) => entry.type === "despesa").reduce((total, entry) => total + entry.amount, 0);
+  const cashRevenue = paidEntries.filter((entry) => entry.type === "receita" && entry.paymentMethod === "dinheiro").reduce((total, entry) => total + entry.amount, 0);
+  const cashExpenses = paidEntries.filter((entry) => entry.type === "despesa" && entry.paymentMethod === "dinheiro").reduce((total, entry) => total + entry.amount, 0);
+  const pendingPayables = entries.filter((entry) => entry.type === "despesa" && entry.status === "pendente").sort((a, b) => String(a.dueDate ?? a.entryDate).localeCompare(String(b.dueDate ?? b.entryDate)));
+  const today = new Date().toISOString().slice(0, 10);
+  const openCash = cashRegisters.find((cash) => !cash.closedAt) ?? null;
+
+  return {
+    cashRegisters,
+    entries,
+    openCash,
+    totals: {
+      revenue,
+      expenses,
+      cashRevenue,
+      cashExpenses,
+      balance: revenue - expenses,
+      pendingPayables: pendingPayables.reduce((total, entry) => total + entry.amount, 0),
+      overduePayables: pendingPayables.filter((entry) => (entry.dueDate ?? entry.entryDate) < today).reduce((total, entry) => total + entry.amount, 0),
+    },
+    pendingPayables,
+    categories,
+  };
+}
+export async function listFinanceCategories() {
+  const { data, error } = await db.from("finance_categories").select("id,name").order("name");
+  if (error) throw error;
+  return (data ?? []) as FinanceCategory[];
+}
+export async function createFinanceCategory(name: string) {
+  const clean = name.trim();
+  if (!clean) throw new Error("Categoria invalida");
+  const { error } = await db.from("finance_categories").upsert({ name: clean }, { onConflict: "name", ignoreDuplicates: true });
+  if (error) throw error;
+}
+export async function openCashRegister(input: { businessDate: string; openingAmount: number; openedBy: string; notes?: string }) {
+  const { error } = await db.from("cash_registers").insert({ business_date: input.businessDate, opening_amount: input.openingAmount, opened_by: input.openedBy, notes: input.notes?.trim() ?? "" });
+  if (error) throw error;
+}
+export async function closeCashRegister(input: { id: string; closingAmount: number; closedBy: string; notes?: string }) {
+  const current = await db.from("cash_registers").select("id,business_date,opening_amount").eq("id", input.id).is("closed_at", null).maybeSingle();
+  if (current.error) throw current.error;
+  if (!current.data) throw new Error("Caixa nao encontrado");
+  const totals = await getFinanceSnapshot(current.data.business_date, current.data.business_date);
+  const expectedAmount = Number(current.data.opening_amount ?? 0) + totals.totals.cashRevenue - totals.totals.cashExpenses;
+  const { error } = await db.from("cash_registers").update({ closing_amount: input.closingAmount, expected_amount: expectedAmount, closed_by: input.closedBy, closed_at: new Date().toISOString(), notes: input.notes?.trim() ?? "" }).eq("id", input.id).is("closed_at", null);
+  if (error) throw error;
+}
+export async function createFinanceEntry(input: { cashRegisterId?: string | null; entryDate: string; type: FinanceEntryType; category: string; description: string; amount: number; paymentMethod: FinancePaymentMethod; status: FinanceStatus; dueDate?: string | null; supplier?: string; documentNumber?: string; documentNote?: string; proofImageName?: string; proofImageDataUrl?: string; installmentGroupId?: string | null; installmentNumber?: number; installmentTotal?: number; createdBy: string }) {
+  const { error } = await db.from("finance_entries").insert({
+    cash_register_id: input.cashRegisterId ?? null,
+    entry_date: input.entryDate,
+    type: input.type,
+    category: input.category.trim(),
+    description: input.description.trim(),
+    amount: input.amount,
+    payment_method: input.paymentMethod,
+    status: input.status,
+    due_date: input.dueDate || null,
+    paid_at: input.status === "pago" ? new Date().toISOString() : null,
+    supplier: input.supplier?.trim() ?? "",
+    document_number: input.documentNumber?.trim() ?? "",
+    document_note: input.documentNote?.trim() ?? "",
+    proof_image_name: input.proofImageName?.trim() ?? "",
+    proof_image_data_url: input.proofImageDataUrl ?? "",
+    installment_group_id: input.installmentGroupId ?? null,
+    installment_number: input.installmentNumber ?? 1,
+    installment_total: input.installmentTotal ?? 1,
+    created_by: input.createdBy,
+  });
+  if (error) throw error;
+}
+export async function updateFinanceEntryStatus(input: { id: string; status: FinanceStatus }) {
+  const current = await db.from("finance_entries").select("status").eq("id", input.id).maybeSingle();
+  if (current.error) throw current.error;
+  if (!current.data) throw new Error("Lancamento nao encontrado");
+  if (current.data.status === "pago" && input.status !== "pago") throw new Error("Lancamento pago nao pode voltar de status");
+  const values = { status: input.status, paid_at: input.status === "pago" ? new Date().toISOString() : null };
+  const { error } = await db.from("finance_entries").update(values).eq("id", input.id);
+  if (error) throw error;
+}
+export async function deleteFinanceEntry(id: string) {
+  const { error } = await db.from("finance_entries").delete().eq("id", id);
   if (error) throw error;
 }
 export async function getPrintJobStatus(id: string) { const { data, error } = await db.from("print_jobs").select("status,error_message").eq("id", id).maybeSingle(); if (error) throw error; return data; }
