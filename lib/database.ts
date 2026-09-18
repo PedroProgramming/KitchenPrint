@@ -28,6 +28,7 @@ export type ShoppingListItem = {
 export type FinanceEntryType = "receita" | "despesa";
 export type FinancePaymentMethod = "dinheiro" | "pix" | "cartao" | "boleto" | "outro";
 export type FinanceStatus = "pago" | "pendente" | "cancelado";
+export type FinanceProofImage = { name: string; dataUrl: string };
 export type CashRegister = {
   id: string;
   businessDate: string;
@@ -58,16 +59,39 @@ export type FinanceEntry = {
   documentNote: string;
   proofImageName: string;
   proofImageDataUrl: string;
+  proofImages: FinanceProofImage[];
   installmentGroupId: string | null;
   installmentNumber: number;
   installmentTotal: number;
+  installmentIntervalDays: number;
+  originalDueDate: string | null;
+  dueDateAdjusted: boolean;
   createdBy: string;
   createdAt: string;
 };
 export type FinanceCategory = { id: string; name: string };
 const url = process.env.NEXT_PUBLIC_SUPABASE_URL; const key = process.env.SUPABASE_SERVICE_ROLE_KEY;
 if (!url || !key) console.warn("Supabase não configurado: defina NEXT_PUBLIC_SUPABASE_URL e SUPABASE_SERVICE_ROLE_KEY.");
-const db = createClient(url ?? "https://invalid.supabase.co", key ?? "invalid", { auth: { autoRefreshToken: false, persistSession: false } });
+const SUPABASE_TIMEOUT_MS = 7000;
+async function timedFetch(input: RequestInfo | URL, init?: RequestInit) {
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), SUPABASE_TIMEOUT_MS);
+  const abort = () => controller.abort();
+  init?.signal?.addEventListener("abort", abort, { once: true });
+  try {
+    const response = await fetch(input, { ...init, signal: controller.signal });
+    if (response.status === 522) throw new Error("Supabase demorou para responder.");
+    return response;
+  } catch (error) {
+    if (controller.signal.aborted) throw new Error("Supabase demorou para responder.");
+    throw error;
+  } finally {
+    clearTimeout(timeout);
+    init?.signal?.removeEventListener("abort", abort);
+  }
+}
+const db = createClient(url ?? "https://invalid.supabase.co", key ?? "invalid", { auth: { autoRefreshToken: false, persistSession: false }, global: { fetch: timedFetch } });
+let financeEntrySelectPreference: string | null = null;
 function mapUser(row: any): User { return { id: row.id, name: row.name, username: row.username, role: row.role, area: row.area ?? null, tables: row.tables_json ?? [] }; }
 function mapShoppingListItem(row: any): ShoppingListItem {
   const requester = Array.isArray(row.requester) ? row.requester[0] : row.requester;
@@ -103,13 +127,15 @@ function mapCashRegister(row: any): CashRegister {
     differenceAmount: closingAmount === null || expectedAmount === null ? null : closingAmount - expectedAmount,
     openedAt: row.opened_at,
     closedAt: row.closed_at,
-    openedBy: opener?.name ?? opener?.username ?? "Usuario",
-    closedBy: closer?.name ?? closer?.username ?? null,
+    openedBy: opener?.name ?? opener?.username ?? row.opened_by_name ?? "Usuario",
+    closedBy: closer?.name ?? closer?.username ?? row.closed_by_name ?? null,
     notes: row.notes ?? "",
   };
 }
 function mapFinanceEntry(row: any): FinanceEntry {
   const creator = Array.isArray(row.creator) ? row.creator[0] : row.creator;
+  const proofImages = Array.isArray(row.proof_images_json) ? row.proof_images_json.filter((proof: any) => proof?.name || proof?.dataUrl) : [];
+  if (!proofImages.length && (row.proof_image_name || row.proof_image_data_url)) proofImages.push({ name: row.proof_image_name ?? "", dataUrl: row.proof_image_data_url ?? "" });
   return {
     id: row.id,
     cashRegisterId: row.cash_register_id,
@@ -127,10 +153,14 @@ function mapFinanceEntry(row: any): FinanceEntry {
     documentNote: row.document_note ?? "",
     proofImageName: row.proof_image_name ?? "",
     proofImageDataUrl: row.proof_image_data_url ?? "",
+    proofImages,
     installmentGroupId: row.installment_group_id ?? null,
     installmentNumber: Number(row.installment_number ?? 1),
     installmentTotal: Number(row.installment_total ?? 1),
-    createdBy: creator?.name ?? creator?.username ?? "Usuario",
+    installmentIntervalDays: Number(row.installment_interval_days ?? 0),
+    originalDueDate: row.original_due_date ?? row.due_date ?? null,
+    dueDateAdjusted: Boolean(row.due_date_adjusted ?? false),
+    createdBy: creator?.name ?? creator?.username ?? row.created_by_name ?? "Usuario",
     createdAt: row.created_at,
   };
 }
@@ -226,31 +256,37 @@ export async function updateShoppingItemStatus(input: { id: string; status: Excl
   if (error) throw error;
 }
 export async function getFinanceSnapshot(from?: string, to?: string) {
-  const entrySelect = "id,cash_register_id,entry_date,type,category,description,amount,payment_method,status,due_date,paid_at,supplier,document_number,document_note,proof_image_name,proof_image_data_url,installment_group_id,installment_number,installment_total,created_at,creator:created_by(name,username)";
-  let cashQuery = db.from("cash_registers").select("id,business_date,opening_amount,closing_amount,expected_amount,opened_at,closed_at,notes,opener:opened_by(name,username),closer:closed_by(name,username)").order("business_date", { ascending: false });
+  const entrySelect = "id,cash_register_id,entry_date,type,category,description,amount,payment_method,status,due_date,paid_at,supplier,document_number,document_note,proof_image_name,installment_group_id,installment_number,installment_total,installment_interval_days,original_due_date,due_date_adjusted,created_at";
+  const proofEntrySelect = "id,cash_register_id,entry_date,type,category,description,amount,payment_method,status,due_date,paid_at,supplier,document_number,document_note,proof_image_name,installment_group_id,installment_number,installment_total,created_at";
+  const legacyEntrySelect = "id,cash_register_id,entry_date,type,category,description,amount,payment_method,status,due_date,paid_at,supplier,document_number,document_note,created_at";
+  let cashQuery = db.from("cash_registers").select("id,business_date,opening_amount,closing_amount,expected_amount,opened_by,closed_by,opened_at,closed_at,notes").order("business_date", { ascending: false }).limit(90);
   if (from) cashQuery = cashQuery.gte("business_date", from);
   if (to) cashQuery = cashQuery.lte("business_date", to);
-  const { data: cashRows, error: cashError } = await cashQuery;
-  if (cashError) throw cashError;
-
-  let entriesQuery = db.from("finance_entries").select(entrySelect).order("entry_date", { ascending: false }).order("created_at", { ascending: false });
-  if (from) entriesQuery = entriesQuery.gte("entry_date", from);
-  if (to) entriesQuery = entriesQuery.lte("entry_date", to);
-  const { data: entryRows, error: entriesError } = await entriesQuery;
-  if (entriesError) throw entriesError;
-
-  const cashRegisters = (cashRows ?? []).map(mapCashRegister);
-  const cashIds = cashRegisters.map((cash) => cash.id);
-  let linkedEntryRows: any[] = [];
-  if (cashIds.length) {
-    const linked = await db.from("finance_entries").select(entrySelect).in("cash_register_id", cashIds).order("entry_date", { ascending: false }).order("created_at", { ascending: false });
-    if (linked.error) throw linked.error;
-    linkedEntryRows = linked.data ?? [];
+  async function readEntries(select: string) {
+    let entriesQuery = db.from("finance_entries").select(select).order("entry_date", { ascending: false }).order("created_at", { ascending: false }).limit(800);
+    if (from) entriesQuery = entriesQuery.gte("entry_date", from);
+    if (to) entriesQuery = entriesQuery.lte("entry_date", to);
+    return entriesQuery;
   }
-  const mergedRows = new Map<string, any>();
-  for (const row of [...(entryRows ?? []), ...linkedEntryRows]) mergedRows.set(row.id, row);
-  const entries = [...mergedRows.values()].map(mapFinanceEntry);
-  const categories = await listFinanceCategories();
+
+  async function readCompatibleEntries() {
+    const selects = [financeEntrySelectPreference, entrySelect, proofEntrySelect, legacyEntrySelect].filter((select, index, list): select is string => Boolean(select) && list.indexOf(select) === index);
+    for (const select of selects) {
+      const result = await readEntries(select);
+      if (!result.error) {
+        financeEntrySelectPreference = select;
+        return result;
+      }
+    }
+    return readEntries(legacyEntrySelect);
+  }
+
+  const [cashResult, entryResult, categories] = await Promise.all([cashQuery, readCompatibleEntries(), listFinanceCategories()]);
+  if (cashResult.error) throw cashResult.error;
+  if (entryResult.error) throw entryResult.error;
+
+  const cashRegisters = (cashResult.data ?? []).map(mapCashRegister);
+  const entries = (entryResult.data ?? []).map(mapFinanceEntry);
   const paidEntries = entries.filter((entry) => entry.status === "pago");
   const revenue = paidEntries.filter((entry) => entry.type === "receita").reduce((total, entry) => total + entry.amount, 0);
   const expenses = paidEntries.filter((entry) => entry.type === "despesa").reduce((total, entry) => total + entry.amount, 0);
@@ -279,14 +315,26 @@ export async function getFinanceSnapshot(from?: string, to?: string) {
 }
 export async function listFinanceCategories() {
   const { data, error } = await db.from("finance_categories").select("id,name").order("name");
-  if (error) throw error;
+  if (error) return [];
   return (data ?? []) as FinanceCategory[];
 }
 export async function createFinanceCategory(name: string) {
   const clean = name.trim();
   if (!clean) throw new Error("Categoria invalida");
   const { error } = await db.from("finance_categories").upsert({ name: clean }, { onConflict: "name", ignoreDuplicates: true });
+  if (error && !String(error.message).includes("finance_categories")) throw error;
+}
+export async function getFinanceEntryProof(id: string) {
+  const { data, error } = await db.from("finance_entries").select("id,proof_image_name,proof_image_data_url,proof_images_json").eq("id", id).maybeSingle();
   if (error) throw error;
+  const proofImages = Array.isArray(data?.proof_images_json) ? data.proof_images_json.filter((proof: any) => proof?.name || proof?.dataUrl) : [];
+  if (!proofImages.length && (data?.proof_image_name || data?.proof_image_data_url)) proofImages.push({ name: data.proof_image_name ?? "", dataUrl: data.proof_image_data_url ?? "" });
+  return {
+    id: data?.id ?? id,
+    proofImageName: data?.proof_image_name ?? "",
+    proofImageDataUrl: data?.proof_image_data_url ?? "",
+    proofImages,
+  };
 }
 export async function openCashRegister(input: { businessDate: string; openingAmount: number; openedBy: string; notes?: string }) {
   const { error } = await db.from("cash_registers").insert({ business_date: input.businessDate, opening_amount: input.openingAmount, opened_by: input.openedBy, notes: input.notes?.trim() ?? "" });
@@ -301,7 +349,9 @@ export async function closeCashRegister(input: { id: string; closingAmount: numb
   const { error } = await db.from("cash_registers").update({ closing_amount: input.closingAmount, expected_amount: expectedAmount, closed_by: input.closedBy, closed_at: new Date().toISOString(), notes: input.notes?.trim() ?? "" }).eq("id", input.id).is("closed_at", null);
   if (error) throw error;
 }
-export async function createFinanceEntry(input: { cashRegisterId?: string | null; entryDate: string; type: FinanceEntryType; category: string; description: string; amount: number; paymentMethod: FinancePaymentMethod; status: FinanceStatus; dueDate?: string | null; supplier?: string; documentNumber?: string; documentNote?: string; proofImageName?: string; proofImageDataUrl?: string; installmentGroupId?: string | null; installmentNumber?: number; installmentTotal?: number; createdBy: string }) {
+export async function createFinanceEntry(input: { cashRegisterId?: string | null; entryDate: string; type: FinanceEntryType; category: string; description: string; amount: number; paymentMethod: FinancePaymentMethod; status: FinanceStatus; dueDate?: string | null; originalDueDate?: string | null; dueDateAdjusted?: boolean; supplier?: string; documentNumber?: string; documentNote?: string; proofImageName?: string; proofImageDataUrl?: string; proofImages?: FinanceProofImage[]; installmentGroupId?: string | null; installmentNumber?: number; installmentTotal?: number; installmentIntervalDays?: number; createdBy: string }) {
+  const proofImages = Array.isArray(input.proofImages) ? input.proofImages.filter((proof) => proof.name?.trim() || proof.dataUrl?.trim()).slice(0, 8) : [];
+  const firstProof = proofImages[0];
   const { error } = await db.from("finance_entries").insert({
     cash_register_id: input.cashRegisterId ?? null,
     entry_date: input.entryDate,
@@ -312,17 +362,41 @@ export async function createFinanceEntry(input: { cashRegisterId?: string | null
     payment_method: input.paymentMethod,
     status: input.status,
     due_date: input.dueDate || null,
+    original_due_date: input.originalDueDate || input.dueDate || null,
+    due_date_adjusted: input.dueDateAdjusted ?? false,
     paid_at: input.status === "pago" ? new Date().toISOString() : null,
     supplier: input.supplier?.trim() ?? "",
     document_number: input.documentNumber?.trim() ?? "",
     document_note: input.documentNote?.trim() ?? "",
-    proof_image_name: input.proofImageName?.trim() ?? "",
-    proof_image_data_url: input.proofImageDataUrl ?? "",
+    proof_image_name: firstProof?.name?.trim() ?? input.proofImageName?.trim() ?? "",
+    proof_image_data_url: firstProof?.dataUrl ?? input.proofImageDataUrl ?? "",
+    proof_images_json: proofImages,
     installment_group_id: input.installmentGroupId ?? null,
     installment_number: input.installmentNumber ?? 1,
     installment_total: input.installmentTotal ?? 1,
+    installment_interval_days: input.installmentIntervalDays ?? 0,
     created_by: input.createdBy,
   });
+  if (error) throw error;
+}
+export async function updateFinanceEntry(input: { id: string; entryDate: string; type: FinanceEntryType; category: string; description: string; amount: number; paymentMethod: FinancePaymentMethod; status: FinanceStatus; dueDate?: string | null; originalDueDate?: string | null; dueDateAdjusted?: boolean; supplier?: string; documentNumber?: string; documentNote?: string }) {
+  const values = {
+    entry_date: input.entryDate,
+    type: input.type,
+    category: input.category.trim(),
+    description: input.description.trim(),
+    amount: input.amount,
+    payment_method: input.paymentMethod,
+    status: input.status,
+    due_date: input.dueDate || null,
+    original_due_date: input.originalDueDate || input.dueDate || null,
+    due_date_adjusted: input.dueDateAdjusted ?? false,
+    paid_at: input.status === "pago" ? new Date().toISOString() : null,
+    supplier: input.supplier?.trim() ?? "",
+    document_number: input.documentNumber?.trim() ?? "",
+    document_note: input.documentNote?.trim() ?? "",
+  };
+  const { error } = await db.from("finance_entries").update(values).eq("id", input.id);
   if (error) throw error;
 }
 export async function updateFinanceEntryStatus(input: { id: string; status: FinanceStatus }) {

@@ -1,0 +1,442 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+  <meta charset="utf-8">
+  <title>Propostas KitchenPrint</title>
+  <style>
+    @page { size: A4; margin: 16mm 14mm; }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      color: #172033;
+      background: #f3f5f8;
+      font-family: Arial, Helvetica, sans-serif;
+      line-height: 1.42;
+    }
+    main {
+      max-width: 980px;
+      margin: 0 auto;
+      background: #fff;
+    }
+    section {
+      padding: 26px 32px;
+      border-bottom: 1px solid #e7eaf0;
+      break-inside: avoid;
+    }
+    h1, h2, h3, p { margin-top: 0; }
+    h1 {
+      margin-bottom: 10px;
+      color: #0f172a;
+      font-size: 34px;
+      letter-spacing: -0.02em;
+      line-height: 1.05;
+    }
+    h2 {
+      margin-bottom: 14px;
+      color: #0f172a;
+      font-size: 22px;
+      letter-spacing: -0.01em;
+    }
+    h3 {
+      margin-bottom: 8px;
+      color: #111827;
+      font-size: 15px;
+    }
+    p, li, td, th {
+      font-size: 12.5px;
+    }
+    ul {
+      margin: 8px 0 0;
+      padding-left: 18px;
+    }
+    li { margin: 4px 0; }
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      margin-top: 10px;
+      overflow: hidden;
+      border: 1px solid #e5e7eb;
+      border-radius: 8px;
+    }
+    th, td {
+      padding: 9px 10px;
+      border-bottom: 1px solid #e5e7eb;
+      text-align: left;
+      vertical-align: top;
+    }
+    th {
+      background: #f8fafc;
+      color: #475569;
+      font-size: 11px;
+      text-transform: uppercase;
+      letter-spacing: .04em;
+    }
+    tr:last-child td { border-bottom: 0; }
+    .cover {
+      min-height: 720px;
+      display: flex;
+      flex-direction: column;
+      justify-content: space-between;
+      background: linear-gradient(135deg, #111827 0%, #172033 58%, #fb923c 160%);
+      color: #fff;
+      border-bottom: 0;
+    }
+    .cover h1, .cover h2, .cover p { color: #fff; }
+    .brand {
+      display: inline-flex;
+      align-items: center;
+      gap: 12px;
+      margin-bottom: 40px;
+      font-weight: 800;
+      font-size: 20px;
+    }
+    .mark {
+      width: 44px;
+      height: 44px;
+      display: grid;
+      place-items: center;
+      border-radius: 11px;
+      background: #f97316;
+      color: #fff;
+      font-weight: 900;
+    }
+    .cover .subtitle {
+      max-width: 700px;
+      color: #dbe4f0;
+      font-size: 17px;
+    }
+    .meta {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 12px;
+      margin-top: 38px;
+    }
+    .meta div {
+      min-height: 76px;
+      padding: 13px;
+      border: 1px solid rgba(255,255,255,.16);
+      border-radius: 10px;
+      background: rgba(255,255,255,.08);
+    }
+    .meta strong, .tag strong {
+      display: block;
+      font-size: 11px;
+      text-transform: uppercase;
+      letter-spacing: .08em;
+      color: #fed7aa;
+    }
+    .meta span {
+      display: block;
+      margin-top: 6px;
+      font-size: 13px;
+      color: #fff;
+    }
+    .grid {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 12px;
+    }
+    .grid-3 {
+      display: grid;
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+      gap: 12px;
+    }
+    .card {
+      min-height: 120px;
+      padding: 14px;
+      border: 1px solid #e5e7eb;
+      border-radius: 8px;
+      background: #fff;
+    }
+    .accent {
+      border-color: #fed7aa;
+      background: #fff7ed;
+    }
+    .muted { color: #64748b; }
+    .tag {
+      display: inline-block;
+      margin: 0 6px 6px 0;
+      padding: 8px 10px;
+      border-radius: 999px;
+      background: #f1f5f9;
+      color: #334155;
+      font-size: 11.5px;
+      font-weight: 700;
+    }
+    .proposal {
+      border-left: 5px solid #f97316;
+    }
+    .page-break { break-before: page; }
+    .checklist li {
+      list-style: none;
+      position: relative;
+      padding-left: 20px;
+    }
+    .checklist li::before {
+      content: "□";
+      position: absolute;
+      left: 0;
+      top: 0;
+      color: #f97316;
+      font-weight: 800;
+    }
+    .footer-note {
+      color: #64748b;
+      font-size: 11px;
+    }
+    @media print {
+      body { background: #fff; }
+      main { max-width: none; }
+      section { padding: 20px 18px; }
+      .cover { min-height: 250mm; }
+    }
+  </style>
+</head>
+<body>
+<main>
+  <section class="cover">
+    <div>
+      <div class="brand"><span class="mark">K</span><span>Sistema para Restaurante</span></div>
+      <h1>Propostas de Produto para Restaurante</h1>
+      <p class="subtitle">Documento para apresentação comercial e alinhamento técnico: uma versão individual para um restaurante específico e uma evolução SaaS para atender múltiplos estabelecimentos.</p>
+      <div class="meta">
+        <div><strong>Base atual</strong><span>Controle de mesas, pedidos, cardápio, usuários, dashboard e impressão para cozinha.</span></div>
+        <div><strong>Objetivo</strong><span>Transformar um sistema simples e útil em uma solução vendável e evolutiva.</span></div>
+        <div><strong>Formato</strong><span>Proposta individual e proposta SaaS para expansão comercial.</span></div>
+      </div>
+    </div>
+    <p class="footer-note">Preparado para reunião com cliente interessado e para alinhamento com parceiro de projeto.</p>
+  </section>
+
+  <section>
+    <h2>Resumo Executivo</h2>
+    <p>O KitchenPrint é um sistema web operacional para restaurantes, focado no controle de mesas, registro de pedidos e envio de pratos para impressão na cozinha. A base atual já possui login por perfil, cadastro de garçons, cadastro de mesas, cadastro de pratos e bebidas, painel de mesas ocupadas, liberação de mesa e dashboard gerencial com indicadores de atendimento.</p>
+    <p>A proposta é organizar o produto em duas possibilidades comerciais: implantação individual para um restaurante, com customização e operação simples; e evolução para SaaS, com múltiplos restaurantes usando a mesma plataforma, cada um com seus dados, usuários, mesas, cardápio, relatórios e configurações isoladas.</p>
+    <div>
+      <span class="tag">Mesas e pedidos</span>
+      <span class="tag">Impressão de cozinha</span>
+      <span class="tag">Cardápio digital interno</span>
+      <span class="tag">Garçons e permissões</span>
+      <span class="tag">Dashboard do dono</span>
+      <span class="tag">Relatórios operacionais</span>
+    </div>
+  </section>
+
+  <section>
+    <h2>O Que o Sistema Já Entrega</h2>
+    <div class="grid">
+      <div class="card">
+        <h3>Operação de mesas</h3>
+        <p>Mapa com mesas livres e ocupadas, seleção de mesa, contagem de itens e liberação de mesa pelo administrador.</p>
+      </div>
+      <div class="card">
+        <h3>Pedidos por mesa</h3>
+        <p>Inclusão de pratos e bebidas, quantidade, observações como “sem gelo” ou “sem cebola”, edição de quantidade e remoção com confirmação.</p>
+      </div>
+      <div class="card">
+        <h3>Impressão para cozinha</h3>
+        <p>Envio apenas de pratos pendentes para a impressora da cozinha, controle de status e marcação do que já foi impresso.</p>
+      </div>
+      <div class="card">
+        <h3>Administração</h3>
+        <p>Cadastro e edição de garçons, áreas de atendimento, novas mesas, pratos e bebidas com preço.</p>
+      </div>
+      <div class="card">
+        <h3>Perfis de acesso</h3>
+        <p>Login com usuário e senha, separando administrador e garçom, com restrição de áreas como salão e copa.</p>
+      </div>
+      <div class="card">
+        <h3>Dashboard</h3>
+        <p>Filtros por hoje, ontem, 7 dias, 30 dias, mês atual ou período personalizado, com métricas do atendimento.</p>
+      </div>
+    </div>
+  </section>
+
+  <section>
+    <h2>Dashboard e Relatórios Propostos</h2>
+    <table>
+      <thead><tr><th>Área</th><th>Indicadores</th><th>Utilidade para o dono</th></tr></thead>
+      <tbody>
+        <tr><td>Mesas</td><td>Mesas fechadas, mesas em atendimento, tempo médio por mesa.</td><td>Entender giro, gargalos de atendimento e ocupação.</td></tr>
+        <tr><td>Vendas operacionais</td><td>Pratos vendidos, pratos diferentes, registros de pedido.</td><td>Identificar volume e variedade de consumo.</td></tr>
+        <tr><td>Cardápio</td><td>Pratos mais pedidos, quantidade vendida, número de mesas que consumiram cada item.</td><td>Dar base para compras, promoções e ajustes de cardápio.</td></tr>
+        <tr><td>Equipe</td><td>Atendimento por garçom, área, mesas atendidas, pratos vendidos e tempo médio.</td><td>Acompanhar produtividade e distribuição de trabalho.</td></tr>
+        <tr><td>Períodos</td><td>Hoje, ontem, últimos 7 dias, últimos 30 dias, mês atual e período manual.</td><td>Comparar desempenho por dia, semana, mês ou evento específico.</td></tr>
+      </tbody>
+    </table>
+  </section>
+
+  <section class="proposal page-break">
+    <h2>Proposta 1: Projeto Individual para um Restaurante</h2>
+    <p>Esta opção é indicada para um cliente específico que deseja começar rápido, com menor complexidade técnica e uma implantação direta no ambiente do restaurante. O sistema é configurado para a operação, mesas, cardápio, usuários e impressora desse estabelecimento.</p>
+    <div class="grid">
+      <div class="card accent">
+        <h3>Escopo inicial</h3>
+        <ul>
+          <li>Login de administrador e garçons.</li>
+          <li>Mapa de mesas por salão/copa.</li>
+          <li>Lançamento de pratos, bebidas, quantidades e observações.</li>
+          <li>Cadastro de pratos e bebidas com preço.</li>
+          <li>Impressão de pedidos de cozinha em impressora térmica.</li>
+          <li>Dashboard gerencial com filtros por período.</li>
+        </ul>
+      </div>
+      <div class="card">
+        <h3>Configuração para o cliente</h3>
+        <ul>
+          <li>Nome e identidade visual simples do restaurante.</li>
+          <li>Quantidade e numeração das mesas.</li>
+          <li>Usuários iniciais e permissões.</li>
+          <li>Cardápio inicial do restaurante.</li>
+          <li>Configuração da impressora local.</li>
+          <li>Treinamento rápido de uso.</li>
+        </ul>
+      </div>
+    </div>
+    <h3>Entregáveis sugeridos</h3>
+    <table>
+      <thead><tr><th>Entrega</th><th>Descrição</th></tr></thead>
+      <tbody>
+        <tr><td>Instalação e configuração</td><td>Ambiente publicado ou local, banco de dados Supabase, usuário administrador, mesas e cardápio inicial.</td></tr>
+        <tr><td>Fluxo de operação</td><td>Garçom abre mesa, adiciona itens, envia pratos para cozinha, administrador acompanha e libera mesa.</td></tr>
+        <tr><td>Relatórios básicos</td><td>Dashboard com pratos mais pedidos, mesas atendidas, tempo médio e desempenho por garçom.</td></tr>
+        <tr><td>Suporte inicial</td><td>Ajustes finos pós-implantação, correção de problemas de uso e orientação da equipe.</td></tr>
+      </tbody>
+    </table>
+    <p class="muted">Modelo comercial possível: taxa de implantação + mensalidade de manutenção/suporte, ou pacote fechado com suporte por período definido.</p>
+  </section>
+
+  <section class="proposal">
+    <h2>Proposta 2: Evolução para SaaS</h2>
+    <p>Esta opção transforma o KitchenPrint em uma plataforma para múltiplos restaurantes. Cada cliente teria seu próprio ambiente lógico, com dados isolados, usuários próprios, mesas, cardápio, relatórios e configurações. O objetivo é permitir venda recorrente para vários estabelecimentos com menor trabalho manual por implantação.</p>
+    <div class="grid">
+      <div class="card accent">
+        <h3>O que muda no produto</h3>
+        <ul>
+          <li>Cadastro de restaurantes/empresas.</li>
+          <li>Isolamento de dados por restaurante.</li>
+          <li>Administrador do restaurante e usuários internos.</li>
+          <li>Configurações por unidade: mesas, áreas, cardápio, impressora e preferências.</li>
+          <li>Painel do SaaS para acompanhar clientes ativos.</li>
+          <li>Planos, limites e cobrança recorrente.</li>
+        </ul>
+      </div>
+      <div class="card">
+        <h3>Cuidados técnicos</h3>
+        <ul>
+          <li>Adicionar campo de restaurante nas tabelas principais.</li>
+          <li>Revisar regras de segurança e Row Level Security.</li>
+          <li>Separar permissões: dono, gerente, garçom e suporte.</li>
+          <li>Criar fluxo de convite e troca de senha.</li>
+          <li>Padronizar agente de impressão local para cada cliente.</li>
+          <li>Monitorar erros de impressão e uso do sistema.</li>
+        </ul>
+      </div>
+    </div>
+    <h3>Modelo SaaS sugerido</h3>
+    <table>
+      <thead><tr><th>Plano</th><th>Perfil</th><th>Recursos</th></tr></thead>
+      <tbody>
+        <tr><td>Essencial</td><td>Restaurante pequeno</td><td>Mesas, pedidos, cardápio, impressão e dashboard básico.</td></tr>
+        <tr><td>Profissional</td><td>Operação com equipe maior</td><td>Relatórios avançados, múltiplas áreas, mais usuários, exportações e suporte prioritário.</td></tr>
+        <tr><td>Multiunidade</td><td>Grupo com mais de uma loja</td><td>Gestão por unidades, comparação de desempenho e visão consolidada.</td></tr>
+      </tbody>
+    </table>
+  </section>
+
+  <section>
+    <h2>Checklist de Funcionalidades Futuras</h2>
+    <p>Itens úteis para apresentar como evolução do produto e criar caminho para novas fases ou planos superiores.</p>
+    <div class="grid">
+      <div class="card">
+        <h3>Operação</h3>
+        <ul class="checklist">
+          <li>Transferência de itens entre mesas.</li>
+          <li>Junção e separação de contas.</li>
+          <li>Status do pedido: em preparo, pronto, entregue.</li>
+          <li>Histórico detalhado por mesa.</li>
+          <li>Comandas por cliente dentro da mesma mesa.</li>
+          <li>Modo tablet/celular otimizado para garçom.</li>
+        </ul>
+      </div>
+      <div class="card">
+        <h3>Gestão e financeiro</h3>
+        <ul class="checklist">
+          <li>Fechamento de conta com total por mesa.</li>
+          <li>Taxa de serviço opcional.</li>
+          <li>Formas de pagamento e conferência de caixa.</li>
+          <li>Descontos, cortesias e cancelamentos com motivo.</li>
+          <li>Exportação CSV/PDF de relatórios.</li>
+          <li>Comparativo de faturamento por período.</li>
+        </ul>
+      </div>
+      <div class="card">
+        <h3>Cardápio e estoque</h3>
+        <ul class="checklist">
+          <li>Categorias de cardápio.</li>
+          <li>Itens temporariamente indisponíveis.</li>
+          <li>Ficha técnica simples por prato.</li>
+          <li>Controle básico de estoque por ingrediente.</li>
+          <li>Alertas de baixa disponibilidade.</li>
+          <li>Relatório de itens com baixa saída.</li>
+        </ul>
+      </div>
+      <div class="card">
+        <h3>SaaS e crescimento</h3>
+        <ul class="checklist">
+          <li>Onboarding automático de novos restaurantes.</li>
+          <li>Painel administrativo da plataforma.</li>
+          <li>Cobrança recorrente e controle de planos.</li>
+          <li>Backups e logs de auditoria.</li>
+          <li>Monitoramento de impressoras e falhas.</li>
+          <li>Integração futura com delivery ou PDV.</li>
+        </ul>
+      </div>
+    </div>
+  </section>
+
+  <section>
+    <h2>Arquitetura Atual e Evolução</h2>
+    <table>
+      <thead><tr><th>Camada</th><th>Atual</th><th>Evolução recomendada</th></tr></thead>
+      <tbody>
+        <tr><td>Frontend</td><td>Next.js com telas de mesas, pratos/bebidas, dashboard e login.</td><td>Melhorar responsividade mobile, componentes reutilizáveis e experiência de operação rápida.</td></tr>
+        <tr><td>Banco de dados</td><td>Supabase/Postgres com usuários, sessões, mesas, pedidos, eventos, cardápio, logs de consumo e impressão.</td><td>No SaaS, incluir restaurante/unidade em todas as entidades e políticas fortes de isolamento.</td></tr>
+        <tr><td>Impressão</td><td>Fila de impressão e agente local para impressora térmica ESC/POS.</td><td>Instalador/serviço local por cliente, monitoramento de status e configuração simplificada.</td></tr>
+        <tr><td>Segurança</td><td>Login com senha protegida, sessões e perfis admin/garçom.</td><td>Convites, recuperação de senha, auditoria, permissões por função e suporte com acesso controlado.</td></tr>
+      </tbody>
+    </table>
+  </section>
+
+  <section>
+    <h2>Roadmap Sugerido</h2>
+    <div class="grid-3">
+      <div class="card accent">
+        <h3>Fase 1 - Cliente piloto</h3>
+        <p>Validar fluxo em restaurante real, ajustar telas, cardápio, mesas, impressão e dashboard. O foco é provar valor rápido.</p>
+      </div>
+      <div class="card">
+        <h3>Fase 2 - Produto vendável</h3>
+        <p>Organizar configurações, relatórios, permissões, exportações e estabilidade para repetir a implantação em outros clientes.</p>
+      </div>
+      <div class="card">
+        <h3>Fase 3 - SaaS</h3>
+        <p>Multiempresa, planos, cobrança, onboarding, painel interno de clientes, isolamento de dados e suporte escalável.</p>
+      </div>
+    </div>
+  </section>
+
+  <section>
+    <h2>Pontos para Levar à Reunião</h2>
+    <ul>
+      <li>Confirmar quantidade de mesas, setores, usuários e impressoras do restaurante.</li>
+      <li>Entender se o cliente precisa apenas de cozinha ou também fechamento de conta.</li>
+      <li>Validar quais relatórios são mais importantes para o dono: pratos, garçons, tempo de mesa, faturamento ou estoque.</li>
+      <li>Combinar um piloto curto com melhorias priorizadas depois do uso real.</li>
+      <li>Apresentar as funcionalidades futuras como evolução planejada, não como promessa imediata.</li>
+    </ul>
+    <p class="footer-note">Observação: valores comerciais, prazo final e responsabilidades de suporte devem ser definidos após validar o ambiente do cliente e o escopo exato da primeira entrega.</p>
+  </section>
+</main>
+</body>
+</html>

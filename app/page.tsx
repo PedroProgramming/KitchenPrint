@@ -89,14 +89,19 @@ export default function Home() {
 
   async function signIn(event: React.FormEvent) {
     event.preventDefault();
-    const response = await fetch("/api/auth/login", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(login),
-    });
-    const data = await response.json();
-    if (!response.ok) return setError(data.error);
-    setUser(data.user);
+    setError("");
+    try {
+      const response = await fetch("/api/auth/login", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(login),
+      });
+      const data = await response.json().catch(() => ({}));
+      if (!response.ok) return setError(data.error ?? "Nao foi possivel entrar.");
+      setUser(data.user);
+    } catch {
+      setError("Nao foi possivel conectar ao servidor local.");
+    }
   }
   async function signOut() {
     await fetch("/api/auth/logout", { method: "POST" });

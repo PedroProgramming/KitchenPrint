@@ -1,7 +1,8 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import Sidebar, { type SidebarUser } from "../sidebar";
+import DashboardSidebar from "../dashboard-sidebar";
+import { type SidebarUser } from "../sidebar";
 
 type DishStats = { name: string; quantity: number; orders: number; tables: number };
 type WaiterStats = { name: string; area: string; tables: number; dishes: number; averageMinutes: number };
@@ -94,7 +95,7 @@ export default function Dashboard() {
   if (!user || !stats) return <main className="grid min-h-screen place-items-center bg-slate-100 text-slate-500">Carregando dashboard...</main>;
 
   return <main className="min-h-screen bg-slate-100 lg:grid lg:grid-cols-[250px_minmax(0,1fr)]">
-    <Sidebar user={user} />
+    <DashboardSidebar user={user} active="dashboard" />
     <section className="min-w-0 p-4 text-slate-900 sm:p-8">
       <div className="mx-auto max-w-7xl">
         <header className="mb-7 flex flex-wrap items-end justify-between gap-4">

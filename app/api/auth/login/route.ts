@@ -12,6 +12,9 @@ export async function POST(request: Request) {
   } catch (error) {
     console.error("Falha no login:", error);
     const message = error && typeof error === "object" && "message" in error ? String(error.message) : "Erro interno no login.";
-    return NextResponse.json({ error: process.env.NODE_ENV === "production" ? "Erro interno no login." : message }, { status: 500 });
+    const friendly = message.includes("fetch failed") || message.includes("Supabase demorou") || message.includes("522")
+      ? "Nao foi possivel conectar ao banco de dados agora. Tente novamente em alguns segundos."
+      : message;
+    return NextResponse.json({ error: process.env.NODE_ENV === "production" ? "Erro interno no login." : friendly }, { status: 500 });
   }
 }
