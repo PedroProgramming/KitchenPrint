@@ -65,13 +65,13 @@ export async function readJson(response: Response) {
   }
 }
 
-export function useFinanceSnapshot() {
+export function useFinanceSnapshot(allEntries = false) {
   const [user, setUser] = useState<SidebarUser | null>(null);
   const [snapshot, setSnapshot] = useState<FinanceSnapshot | null>(null);
   const [error, setError] = useState("");
 
   async function refresh() {
-    const response = await fetch(`/api/finance?from=${monthStart}&to=${today}`);
+    const response = await fetch(allEntries ? "/api/finance" : `/api/finance?from=${monthStart}&to=${today}`);
     const data = await readJson(response);
     if (!response.ok) throw new Error(data.error ?? "Nao foi possivel carregar o financeiro.");
     setSnapshot(data);

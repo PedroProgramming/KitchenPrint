@@ -263,10 +263,17 @@ export async function getFinanceSnapshot(from?: string, to?: string) {
   if (from) cashQuery = cashQuery.gte("business_date", from);
   if (to) cashQuery = cashQuery.lte("business_date", to);
   async function readEntries(select: string) {
-    let entriesQuery = db.from("finance_entries").select(select).order("entry_date", { ascending: false }).order("created_at", { ascending: false }).limit(800);
-    if (from) entriesQuery = entriesQuery.gte("entry_date", from);
-    if (to) entriesQuery = entriesQuery.lte("entry_date", to);
-    return entriesQuery;
+    const pageSize = 1000;
+    const rows: any[] = [];
+    for (let offset = 0; ; offset += pageSize) {
+      let entriesQuery = db.from("finance_entries").select(select).order("entry_date", { ascending: false }).order("created_at", { ascending: false }).range(offset, offset + pageSize - 1);
+      if (from) entriesQuery = entriesQuery.gte("entry_date", from);
+      if (to) entriesQuery = entriesQuery.lte("entry_date", to);
+      const result = await entriesQuery;
+      if (result.error) return { data: null, error: result.error };
+      rows.push(...(result.data ?? []));
+      if ((result.data ?? []).length < pageSize) return { data: rows, error: null };
+    }
   }
 
   async function readCompatibleEntries() {

@@ -30,8 +30,9 @@ function PayableMetric({ label, value, hint, tone = "plain" }: { label: string; 
 }
 
 export default function BoletosPage() {
-  const { user, snapshot, error, refresh } = useFinanceSnapshot();
+  const { user, snapshot, error, refresh } = useFinanceSnapshot(true);
   const [status, setStatusFilter] = useState<StatusFilter>("a_pagar");
+  const [month, setMonth] = useState(today.slice(0, 7));
   const [category, setCategory] = useState("todos");
   const [search, setSearch] = useState("");
   const [creatingCategory, setCreatingCategory] = useState(false);
@@ -108,6 +109,7 @@ export default function BoletosPage() {
     return rows.filter((entry) => {
       const matchesCategory = category === "todos" || entry.category === category;
       const date = entry.dueDate ?? entry.entryDate;
+      const matchesMonth = month === "todos" || date.startsWith(month);
       const matchesStatus =
         status === "todos" ||
         (status === "a_pagar" && entry.status === "pendente") ||
@@ -115,9 +117,9 @@ export default function BoletosPage() {
         entry.status === status;
       const searchable = [entry.category, entry.description, entry.documentNumber, entry.documentNote, entry.proofImageName, entry.paymentMethod, entry.status, date].join(" ").toLowerCase();
       const matchesSearch = !term || searchable.includes(term);
-      return matchesCategory && matchesStatus && matchesSearch;
+      return matchesMonth && matchesCategory && matchesStatus && matchesSearch;
     }).sort((a, b) => String(a.dueDate ?? a.entryDate).localeCompare(String(b.dueDate ?? b.entryDate)));
-  }, [category, search, snapshot, status]);
+  }, [category, month, search, snapshot, status]);
 
   const payableInsights = useMemo(() => {
     const allExpenses = (snapshot?.entries ?? []).filter((entry) => entry.type === "despesa" && entry.status !== "cancelado");
@@ -218,7 +220,8 @@ export default function BoletosPage() {
           <button className="self-end rounded-xl bg-slate-900 px-4 py-3 font-black text-white" type="button" onClick={createCategory}>Salvar</button>
         </div>}
 
-        <div className="mt-4 grid gap-4 lg:grid-cols-[minmax(180px,260px)_minmax(260px,1fr)]">
+        <div className="mt-4 grid gap-4 lg:grid-cols-[minmax(160px,220px)_minmax(180px,260px)_minmax(260px,1fr)]">
+          <label className="mb-0">Mês<select className="h-12" value={month} onChange={(event) => setMonth(event.target.value)}><option value="todos">Todos os meses</option>{Array.from({ length: 36 }, (_, index) => { const date = new Date(new Date().getFullYear(), new Date().getMonth() - index, 1); const value = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}`; return <option key={value} value={value}>{new Intl.DateTimeFormat("pt-BR", { month: "long", year: "numeric" }).format(date)}</option>; })}</select></label>
           <label className="mb-0">Fornecedor / tipo<select className="h-12" value={category} onChange={(event) => setCategory(event.target.value)}><option value="todos">Todos</option>{snapshot.categories.map((item) => <option key={item.id} value={item.name}>{item.name}</option>)}</select></label>
           <label className="mb-0">Buscar boleto<input className="h-12" value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Fornecedor, referencia, descricao, data..." /></label>
           <div className="lg:col-span-2">
